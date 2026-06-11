@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="vi" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ToolDownload — YouTube Playlist</title>
+  <script>
+    (function () {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+    })();
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    @keyframes progress-stripe {
+      0% { background-position: 0 0; }
+      100% { background-position: 40px 0; }
+    }
+    @keyframes progress-glow {
+      0%, 100% { box-shadow: 0 0 8px rgba(16, 185, 129, 0.4); }
+      50% { box-shadow: 0 0 16px rgba(16, 185, 129, 0.7); }
+    }
+    .progress-bar-fill {
+      background-image:
+        linear-gradient(to right, #059669, #14b8a6, #10b981),
+        repeating-linear-gradient(
+          -45deg,
+          rgba(255, 255, 255, 0.12) 0,
+          rgba(255, 255, 255, 0.12) 8px,
+          transparent 8px,
+          transparent 16px
+        );
+      background-size: 100% 100%, 40px 40px;
+      animation: progress-stripe 1s linear infinite, progress-glow 2s ease-in-out infinite;
+    }
+    .progress-bar-fill.idle {
+      animation: none;
+      background-image: linear-gradient(to right, #059669, #14b8a6);
+    }
+    @keyframes spin-smooth {
+      to { transform: rotate(360deg); }
+    }
+    .btn-spinner {
+      animation: spin-smooth 0.8s linear infinite;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800 antialiased transition-colors duration-300 dark:bg-zinc-950 dark:text-zinc-100">
+  <div class="mx-auto flex min-h-screen max-w-3xl flex-col px-4 py-8 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <header class="mb-8">
+      <div class="flex items-start justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <!-- Logo SVG: Play + Download -->
+          <svg class="h-11 w-11 shrink-0 drop-shadow-lg sm:h-12 sm:w-12" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <linearGradient id="logoGrad" x1="4" y1="4" x2="44" y2="44" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#06b6d4"/>
+                <stop offset="50%" stop-color="#3b82f6"/>
+                <stop offset="100%" stop-color="#10b981"/>
+              </linearGradient>
+            </defs>
+            <rect x="2" y="2" width="44" height="44" rx="12" fill="url(#logoGrad)" opacity="0.15"/>
+            <path d="M18 14v20l16-10-16-10z" fill="url(#logoGrad)"/>
+            <path d="M30 30v6h6" stroke="url(#logoGrad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M30 36l6-6" stroke="url(#logoGrad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <div>
+            <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">ToolDownload</h1>
+            <p class="mt-0.5 text-sm text-slate-500 dark:text-zinc-400">Tải hàng loạt video từ YouTube Playlist qua yt-dlp</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <!-- Theme Toggle -->
+          <button
+            type="button"
+            id="themeToggle"
+            aria-label="Đổi chế độ sáng/tối"
+            class="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+          >
+            <svg id="iconSun" class="hidden h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+            </svg>
+            <svg id="iconMoon" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+            </svg>
+          </button>
+
+          <!-- Server Status -->
+          <div id="serverStatus" class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
+            <span id="statusDot" class="h-2 w-2 rounded-full bg-slate-400"></span>
+            <span id="statusText">Đang kiểm tra...</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Form Card -->
+    <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/50 transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800 dark:shadow-black/20">
+      <form id="downloadForm" class="space-y-5">
+        <div>
+          <label for="playlistUrl" class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-zinc-300">
+            URL Playlist YouTube
+          </label>
+          <input
+            type="url"
+            id="playlistUrl"
+            required
+            placeholder="https://www.youtube.com/playlist?list=..."
+            class="input-field w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none transition-all duration-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder-zinc-600"
+          >
+        </div>
+
+        <div>
+          <label for="downloadPath" class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-zinc-300">
+            Thư mục lưu file
+          </label>
+          <input
+            type="text"
+            id="downloadPath"
+            placeholder="./downloads (mặc định nếu để trống)"
+            class="input-field w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none transition-all duration-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder-zinc-600"
+          >
+          <p class="mt-1 text-xs text-slate-400 dark:text-zinc-500">Đường dẫn tương đối (vd: ./downloads) hoặc tuyệt đối (vd: /Users/name/Videos)</p>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div>
+            <label for="fromIndex" class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-zinc-300">
+              Từ video thứ (X)
+            </label>
+            <input
+              type="number"
+              id="fromIndex"
+              min="1"
+              value="1"
+              required
+              class="input-field w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition-all duration-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+            >
+          </div>
+          <div>
+            <label for="toIndex" class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-zinc-300">
+              Đến video thứ (Y)
+            </label>
+            <input
+              type="number"
+              id="toIndex"
+              min="1"
+              value="5"
+              required
+              class="input-field w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition-all duration-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+            >
+          </div>
+          <div>
+            <label for="resolution" class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-zinc-300">
+              Độ phân giải
+            </label>
+            <select
+              id="resolution"
+              class="input-field w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition-all duration-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+            >
+              <option value="480" selected>480p</option>
+              <option value="720">720p</option>
+              <option value="1080">1080p</option>
+            </select>
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          id="startBtn"
+          class="flex w-full items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 transition-all duration-300 hover:scale-[1.02] hover:shadow-emerald-500/40 hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100 disabled:hover:brightness-100"
+        >
+          <svg id="btnIcon" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          <svg id="btnSpinner" class="btn-spinner hidden h-5 w-5" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          <span id="btnText">Bắt đầu tải hàng loạt</span>
+        </button>
+      </form>
+    </section>
+
+    <!-- Progress -->
+    <section id="progressSection" class="mt-6 hidden">
+      <div class="mb-2 flex items-center justify-between text-sm">
+        <span class="font-medium text-slate-700 dark:text-zinc-300">Tiến trình tổng thể</span>
+        <span id="progressPercent" class="tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">0%</span>
+      </div>
+      <div class="h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-zinc-800">
+        <div
+          id="progressBar"
+          class="progress-bar-fill idle h-full rounded-full transition-all duration-500 ease-out"
+          style="width: 0%"
+        ></div>
+      </div>
+      <p id="progressDetail" class="mt-1.5 text-xs text-slate-400 dark:text-zinc-500">Chưa bắt đầu</p>
+    </section>
+
+    <!-- Summary badge -->
+    <div id="summaryBadge" class="mt-4 hidden">
+      <span class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
+        Sẽ tải: <strong id="summaryCount" class="ml-1 text-emerald-600 dark:text-emerald-400">0</strong> video
+      </span>
+    </div>
+
+    <!-- Terminal Log (macOS style) -->
+    <section class="mt-6 flex flex-1 flex-col">
+      <div class="mb-2 flex items-center justify-between">
+        <h2 class="text-sm font-medium text-slate-500 dark:text-zinc-400">Terminal Log</h2>
+        <button
+          type="button"
+          id="clearLogBtn"
+          class="text-xs text-slate-400 transition-colors duration-200 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+        >
+          Xóa log
+        </button>
+      </div>
+      <div class="overflow-hidden rounded-2xl border border-slate-700/50 shadow-xl dark:border-zinc-800">
+        <!-- macOS title bar -->
+        <div class="flex items-center gap-2 border-b border-slate-700/50 bg-slate-800/90 px-4 py-2.5 dark:border-zinc-800 dark:bg-zinc-900/90">
+          <span class="h-3 w-3 rounded-full bg-[#ff5f57] shadow-sm"></span>
+          <span class="h-3 w-3 rounded-full bg-[#febc2e] shadow-sm"></span>
+          <span class="h-3 w-3 rounded-full bg-[#28c840] shadow-sm"></span>
+          <span class="ml-2 font-mono text-xs text-slate-400 dark:text-zinc-500">tooldownload — bash</span>
+        </div>
+        <div
+          id="logTerminal"
+          class="h-80 overflow-y-auto bg-[#0d1117] p-4 font-mono text-xs leading-relaxed sm:h-96"
+        >
+          <p class="text-zinc-600">// Chờ lệnh tải...</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
