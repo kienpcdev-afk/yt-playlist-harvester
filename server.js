@@ -9,6 +9,35 @@ const { promisify } = require('util');
 
 const execFileAsync = promisify(execFile);
 
+function findYtDlpInWinGetPackages() {
+  const packagesDir = path.join(
+    process.env.LOCALAPPDATA || '',
+    'Microsoft', 'WinGet', 'Packages'
+  );
+  if (!packagesDir || !fs.existsSync(packagesDir)) return null;
+
+  for (const entry of fs.readdirSync(packagesDir)) {
+    if (!entry.startsWith('yt-dlp.yt-dlp')) continue;
+    const exe = path.join(packagesDir, entry, 'yt-dlp.exe');
+    if (fs.existsSync(exe)) return exe;
+  }
+  return null;
+}
+
+function resolveYtDlpCommand() {
+  const fromEnv = (process.env.YTDLP_PATH || '').trim();
+  if (fromEnv && fs.existsSync(fromEnv)) return fromEnv;
+
+  if (process.platform === 'win32') {
+    const winget = findYtDlpInWinGetPackages();
+    if (winget) return winget;
+  }
+
+  return 'yt-dlp';
+}
+
+const YTDLP_CMD = resolveYtDlpCommand();
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DOWNLOADS_DIR = path.join(__dirname, 'downloads');
@@ -76,7 +105,7 @@ function buildFormatString(resolution) {
 
 function runYtDlpFlatPlaylist(playlistUrl) {
   // flat-playlist trên URL playlist trả tiêu đề đã dịch — chỉ dùng để lấy id
-  return execFileAsync('yt-dlp', [
+  return execFileAsync(YTDLP_CMD, [
     ...YTDLP_EXTRACTOR_ARGS,
     '--flat-playlist', '-J',
     playlistUrl,
@@ -86,13 +115,21 @@ function runYtDlpFlatPlaylist(playlistUrl) {
 }
 
 async function fetchVideoTitle(videoUrl) {
-  const { stdout } = await execFileAsync('yt-dlp', [
+  // yt-dlp 2026.06+ trả rỗng với %(title)s; %(title)j xuất JSON string an toàn với Unicode
+  const { stdout } = await execFileAsync(YTDLP_CMD, [
     ...YTDLP_EXTRACTOR_ARGS,
     '-q', '--no-warnings',
-    '--print', '%(title)s',
+    '--print', '%(title)j',
     videoUrl,
   ], { maxBuffer: 10 * 1024 * 1024 });
-  return stdout.trim();
+  const raw = stdout.trim();
+  if (!raw) return '';
+  try {
+    const title = JSON.parse(raw);
+    return typeof title === 'string' ? title.trim() : '';
+  } catch {
+    return '';
+  }
 }
 
 function downloadVideo(videoUrl, outputPath, resolution, onLog) {
@@ -108,7 +145,7 @@ function downloadVideo(videoUrl, outputPath, resolution, onLog) {
       videoUrl,
     ];
 
-    const proc = spawn('yt-dlp', args);
+    const proc = spawn(YTDLP_CMD, args);
     let stderr = '';
 
     proc.stdout.on('data', (chunk) => {
@@ -123,7 +160,12 @@ function downloadVideo(videoUrl, outputPath, resolution, onLog) {
       for (const line of lines) onLog(line);
     });
 
-    proc.on('error', (err) => reject(new Error(`Không chạy được yt-dlp: ${err.message}`)));
+    proc.on('error', (err) => {
+      const hint = err.code === 'ENOENT'
+        ? ' (cài yt-dlp hoặc đặt biến YTDLP_PATH trỏ tới yt-dlp.exe)'
+        : '';
+      reject(new Error(`Không chạy được yt-dlp: ${err.message}${hint}`));
+    });
     proc.on('close', (code) => {
       if (code === 0) resolve();
       else reject(new Error(stderr.trim() || `yt-dlp thoát với mã ${code}`));
@@ -289,4 +331,5 @@ app.post('/api/playlist/download', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server đang chạy tại http://localhost:${PORT}`);
   console.log(`Thư mục tải: ${DOWNLOADS_DIR}`);
+  console.log(`yt-dlp: ${YTDLP_CMD}`);
 });
