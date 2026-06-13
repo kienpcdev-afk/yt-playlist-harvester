@@ -2,6 +2,8 @@ node_modules/
 downloads/
 .env
 .env.local
+cookies.txt
+*.cookies.txt
 .DS_Store
 Thumbs.db
 *.log

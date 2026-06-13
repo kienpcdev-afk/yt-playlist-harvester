@@ -38,6 +38,24 @@ function resolveYtDlpCommand() {
 
 const YTDLP_CMD = resolveYtDlpCommand();
 
+// Cookie YouTube — TÙY CHỌN, mặc định TẮT (không đặt YTDLP_COOKIES = chạy như cũ).
+// Chỉ bật khi playlist >100 video mà yt-dlp chỉ lấy được 100 mục đầu.
+// Xem .env.example để biết cách export cookies.txt từ trình duyệt.
+function resolveYtDlpCookieArgs() {
+  const raw = (process.env.YTDLP_COOKIES || '').trim();
+  if (!raw) return [];
+
+  const cookiePath = path.isAbsolute(raw) ? raw : path.resolve(__dirname, raw);
+  if (!fs.existsSync(cookiePath)) {
+    console.warn(`[yt-dlp] YTDLP_COOKIES không tìm thấy file: ${cookiePath}`);
+    return [];
+  }
+
+  return ['--cookies', cookiePath];
+}
+
+const YTDLP_COOKIE_ARGS = resolveYtDlpCookieArgs();
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DOWNLOADS_DIR = path.join(__dirname, 'downloads');
@@ -106,6 +124,7 @@ function buildFormatString(resolution) {
 function runYtDlpFlatPlaylist(playlistUrl) {
   // flat-playlist trên URL playlist trả tiêu đề đã dịch — chỉ dùng để lấy id
   return execFileAsync(YTDLP_CMD, [
+    ...YTDLP_COOKIE_ARGS,
     ...YTDLP_EXTRACTOR_ARGS,
     '--flat-playlist', '-J',
     playlistUrl,
@@ -117,6 +136,7 @@ function runYtDlpFlatPlaylist(playlistUrl) {
 async function fetchVideoTitle(videoUrl) {
   // yt-dlp 2026.06+ trả rỗng với %(title)s; %(title)j xuất JSON string an toàn với Unicode
   const { stdout } = await execFileAsync(YTDLP_CMD, [
+    ...YTDLP_COOKIE_ARGS,
     ...YTDLP_EXTRACTOR_ARGS,
     '-q', '--no-warnings',
     '--print', '%(title)j',
@@ -135,6 +155,7 @@ async function fetchVideoTitle(videoUrl) {
 function downloadVideo(videoUrl, outputPath, resolution, onLog) {
   return new Promise((resolve, reject) => {
     const args = [
+      ...YTDLP_COOKIE_ARGS,
       ...YTDLP_EXTRACTOR_ARGS,
       '-f', buildFormatString(resolution),
       '--merge-output-format', 'mp4',
@@ -238,6 +259,7 @@ app.post('/api/playlist/download', async (req, res) => {
     const { stdout } = await runYtDlpFlatPlaylist(playlistUrl);
     const playlistData = JSON.parse(stdout);
     const entries = (playlistData.entries || []).filter((e) => e && e.id);
+    const playlistCount = Number(playlistData.playlist_count) || entries.length;
 
     if (entries.length === 0) {
       throw new Error('Playlist trống hoặc không lấy được video');
@@ -248,7 +270,16 @@ app.post('/api/playlist/download', async (req, res) => {
     const selected = entries.slice(startIdx, endIdx);
 
     if (selected.length === 0) {
-      throw new Error(`Không có video nào trong khoảng ${X}–${Y} (playlist có ${entries.length} video)`);
+      const countHint = playlistCount > entries.length
+        ? `${entries.length} (YouTube báo ~${playlistCount})`
+        : `${entries.length}`;
+      let msg = `Không có video nào trong khoảng ${X}–${Y} (playlist có ${countHint} video)`;
+      if (Y > entries.length) {
+        msg += YTDLP_COOKIE_ARGS.length
+          ? '. Đã bật cookie nhưng vẫn thiếu video — thử cập nhật yt-dlp hoặc export lại cookies.txt'
+          : '. Playlist >100 video: đặt YTDLP_COOKIES trong .env (xem .env.example)';
+      }
+      throw new Error(msg);
     }
 
     log('info', 'Đang lấy tiêu đề gốc từng video (tránh bản dịch tự động của playlist)...');
@@ -332,4 +363,5 @@ app.listen(PORT, () => {
   console.log(`Server đang chạy tại http://localhost:${PORT}`);
   console.log(`Thư mục tải: ${DOWNLOADS_DIR}`);
   console.log(`yt-dlp: ${YTDLP_CMD}`);
+  console.log(`yt-dlp cookies: ${YTDLP_COOKIE_ARGS.length ? 'bật' : 'tắt (mặc định)'}`);
 });
