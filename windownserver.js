@@ -12,38 +12,10 @@ const { getYtDlpCookieArgs, describeYtDlpCookies, hasYtDlpCookies } = require('.
 const { createYtDlpProgressLogger } = require('./ytdlp-log-filter');
 const { getDownloadConcurrency, runWithConcurrency } = require('./download-queue');
 
-function findYtDlpInWinGetPackages() {
-  const packagesDir = path.join(
-    process.env.LOCALAPPDATA || '',
-    'Microsoft', 'WinGet', 'Packages',
-  );
-  if (!packagesDir || !fs.existsSync(packagesDir)) return null;
-
-  for (const entry of fs.readdirSync(packagesDir)) {
-    if (!entry.startsWith('yt-dlp.yt-dlp')) continue;
-    const exe = path.join(packagesDir, entry, 'yt-dlp.exe');
-    if (fs.existsSync(exe)) return exe;
-  }
-  return null;
-}
-
-function resolveYtDlpCommand() {
-  const fromEnv = (process.env.YTDLP_PATH || '').trim();
-  if (fromEnv && fs.existsSync(fromEnv)) return fromEnv;
-
-  if (process.platform === 'win32') {
-    const winget = findYtDlpInWinGetPackages();
-    if (winget) return winget;
-  }
-
-  return 'yt-dlp';
-}
-
-const YTDLP_CMD = resolveYtDlpCommand();
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DOWNLOADS_DIR = path.join(__dirname, 'downloads');
+const YTDLP_BIN = path.join(__dirname, 'yt-dlp.exe');
 
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
@@ -78,7 +50,7 @@ function formatSTT(playlistPosition) {
   return String(playlistPosition).padStart(2, '0');
 }
 
-const YTDLP_EXTRACTOR_ARGS = ['--extractor-args', 'youtube:player_client=web'];
+const YTDLP_EXTRACTOR_ARGS = ['--extractor-args', 'youtube:player_client=android,tvhtml5'];
 
 function buildThumbFilename(stt) {
   return stt;
@@ -121,24 +93,17 @@ function runYtDlpFlatPlaylist(playlistUrl, playlistItems) {
   }
   args.push(playlistUrl);
 
-  return execFileAsync(YTDLP_CMD, args, {
+  return execFileAsync(YTDLP_BIN, args, {
     maxBuffer: 50 * 1024 * 1024,
   });
 }
 
 async function fetchPlaylistEntries(playlistUrl, fromIndex, toIndex) {
   const { stdout } = await runYtDlpFlatPlaylist(playlistUrl);
-  const playlistData = JSON.parse(stdout);
-  const entries = (playlistData.entries || []).filter((e) => e && e.id);
-  const playlistCount = Number(playlistData.playlist_count) || entries.length;
+  const entries = (JSON.parse(stdout).entries || []).filter((e) => e && e.id);
 
   if (toIndex <= entries.length) {
-    return {
-      entries,
-      selected: entries.slice(fromIndex - 1, toIndex),
-      totalVisible: entries.length,
-      playlistCount,
-    };
+    return { entries, selected: entries.slice(fromIndex - 1, toIndex), totalVisible: entries.length };
   }
 
   try {
@@ -148,18 +113,13 @@ async function fetchPlaylistEntries(playlistUrl, fromIndex, toIndex) {
     );
     const rangeEntries = (JSON.parse(rangeStdout).entries || []).filter((e) => e && e.id);
     if (rangeEntries.length > 0) {
-      return {
-        entries,
-        selected: rangeEntries,
-        totalVisible: entries.length,
-        playlistCount,
-      };
+      return { entries, selected: rangeEntries, totalVisible: entries.length };
     }
   } catch {
     // thử tiếp với danh sách đã có
   }
 
-  return { entries, selected: [], totalVisible: entries.length, playlistCount };
+  return { entries, selected: [], totalVisible: entries.length };
 }
 
 async function downloadVideoAndThumbnail(videoUrl, videoPath, thumbPath, videoId, resolution, onLog, onVideoDone, onThumbDone, onThumbError) {
@@ -195,7 +155,7 @@ function downloadVideo(videoUrl, outputPath, resolution, onLog) {
       videoUrl,
     ];
 
-    const proc = spawn(YTDLP_CMD, args);
+    const proc = spawn(YTDLP_BIN, args);
     let stderr = '';
 
     proc.stdout.on('data', (chunk) => {
@@ -210,12 +170,7 @@ function downloadVideo(videoUrl, outputPath, resolution, onLog) {
       for (const line of lines) logLine(line);
     });
 
-    proc.on('error', (err) => {
-      const hint = err.code === 'ENOENT'
-        ? ' (cài yt-dlp hoặc đặt biến YTDLP_PATH trỏ tới yt-dlp.exe)'
-        : '';
-      reject(new Error(`Không chạy được yt-dlp: ${err.message}${hint}`));
-    });
+    proc.on('error', (err) => reject(new Error(`Không chạy được yt-dlp: ${err.message}`)));
     proc.on('close', (code) => {
       if (code === 0) resolve();
       else reject(new Error(stderr.trim() || `yt-dlp thoát với mã ${code}`));
@@ -291,24 +246,20 @@ app.post('/api/playlist/download', async (req, res) => {
       log('info', 'Chưa cấu hình cookies — playlist >100 video thường cần cookies.txt hoặc YTDLP_COOKIES_FROM_BROWSER trong .env');
     }
 
-    const { entries, selected, totalVisible, playlistCount } = await fetchPlaylistEntries(playlistUrl, X, Y);
-    const countHint = playlistCount > totalVisible
-      ? `${totalVisible} (YouTube báo ~${playlistCount})`
-      : `${totalVisible}`;
-    log('info', `yt-dlp thấy ${countHint} video trong playlist`);
+    const { entries, selected, totalVisible } = await fetchPlaylistEntries(playlistUrl, X, Y);
+    log('info', `yt-dlp thấy ${totalVisible} video trong playlist`);
 
     if (entries.length === 0 && selected.length === 0) {
       throw new Error('Playlist trống hoặc không lấy được video');
     }
 
     if (selected.length === 0) {
-      let msg = `Không có video nào trong khoảng ${X}–${Y} (yt-dlp chỉ thấy ${countHint} video).`;
-      if (Y > totalVisible) {
-        msg += hasYtDlpCookies()
-          ? ' Đã bật cookie nhưng vẫn thiếu video — thử cập nhật yt-dlp hoặc export lại cookies.'
-          : ' Playlist >100 video: thêm YTDLP_COOKIES hoặc YTDLP_COOKIES_FROM_BROWSER vào .env (xem .env.example).';
-      }
-      throw new Error(msg);
+      const cookieHint = hasYtDlpCookies()
+        ? ' Kiểm tra cookies còn hạn và tài khoản có quyền xem playlist.'
+        : ' Playlist >100 video cần cookies: đặt cookies.txt trong thư mục project hoặc thêm YTDLP_COOKIES_FROM_BROWSER=edge vào .env (xem .env.example).';
+      throw new Error(
+        `Không có video nào trong khoảng ${X}–${Y} (yt-dlp chỉ thấy ${totalVisible} video).${cookieHint}`,
+      );
     }
 
     const startIdx = X - 1;
@@ -394,7 +345,6 @@ app.post('/api/playlist/download', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server đang chạy tại http://localhost:${PORT}`);
   console.log(`Thư mục tải: ${DOWNLOADS_DIR}`);
-  console.log(`yt-dlp: ${YTDLP_CMD}`);
   const cookieDesc = describeYtDlpCookies();
   if (cookieDesc) {
     console.log(`Cookies YouTube: ${cookieDesc}`);

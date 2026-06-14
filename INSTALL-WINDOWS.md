@@ -1,6 +1,6 @@
 # Hướng dẫn cài đặt ToolDownload trên Windows
 
-Tài liệu này hướng dẫn từ đầu: clone project từ Git, cài phần mềm cần thiết, cấu hình VS Code / Cursor, và chạy ứng dụng trên **Windows 10 / 11**.
+Tài liệu này hướng dẫn từ đầu: nhận source code, cài phần mềm cần thiết, cấu hình và chạy ứng dụng trên **Windows 10 / 11**.
 
 ---
 
@@ -8,11 +8,13 @@ Tài liệu này hướng dẫn từ đầu: clone project từ Git, cài phần
 
 1. [Yêu cầu hệ thống](#1-yêu-cầu-hệ-thống)
 2. [Cài phần mềm nền tảng](#2-cài-phần-mềm-nền-tảng)
-3. [Clone project từ Git](#3-clone-project-từ-git)
+3. [Lấy source code](#3-lấy-source-code)
 4. [Cài đặt & chạy project](#4-cài-đặt--chạy-project)
-5. [Extension VS Code / Cursor (khuyến nghị)](#5-extension-vs-code--cursor-khuyến-nghị)
+5. [Cấu hình `.env`](#5-cấu-hình-env)
 6. [Sử dụng giao diện web](#6-sử-dụng-giao-diện-web)
-7. [Xử lý lỗi thường gặp trên Windows](#7-xử-lý-lỗi-thường-gặp-trên-windows)
+7. [Quy tắc đặt tên file](#7-quy-tắc-đặt-tên-file)
+8. [Share source cho người khác](#8-share-source-cho-người-khác)
+9. [Xử lý lỗi thường gặp](#9-xử-lý-lỗi-thường-gặp)
 
 ---
 
@@ -21,96 +23,60 @@ Tài liệu này hướng dẫn từ đầu: clone project từ Git, cài phần
 | Thành phần | Phiên bản tối thiểu | Ghi chú |
 |---|---|---|
 | Windows | 10 trở lên | 64-bit |
-| Git | 2.x | Clone repo |
 | Node.js | 18+ | Chạy server Express |
-| yt-dlp | Mới nhất | Tải video YouTube |
-| ffmpeg | Mới nhất | Gộp video + audio thành `.mp4` |
+| yt-dlp | Mới nhất | File `yt-dlp.exe` trong thư mục project |
+| ffmpeg | Mới nhất | **Bắt buộc** — gộp video + audio thành `.mp4` (480p) |
 | Trình duyệt | Chrome / Edge / Firefox | Mở giao diện web |
+| Git | 2.x | Tùy chọn — dùng khi clone repo |
 
 ---
 
 ## 2. Cài phần mềm nền tảng
 
-Mở **PowerShell** hoặc **Terminal** (nhấn `Win + X` → chọn *Terminal* / *Windows PowerShell*).
+Mở **PowerShell** hoặc **Terminal** (`Win + X` → *Terminal*).
 
-### 2.1. Cài Git
-
-**Cách 1 — winget (khuyến nghị):**
-
-```powershell
-winget install --id Git.Git -e
-```
-
-**Cách 2 — tải installer:** [https://git-scm.com/download/win](https://git-scm.com/download/win)
-
-Sau khi cài, **đóng và mở lại** Terminal, kiểm tra:
-
-```powershell
-git --version
-```
-
----
-
-### 2.2. Cài Node.js
-
-**Cách 1 — winget:**
+### 2.1. Cài Node.js
 
 ```powershell
 winget install OpenJS.NodeJS.LTS
 ```
 
-**Cách 2 — tải installer:** [https://nodejs.org](https://nodejs.org) → chọn bản **LTS**
+Hoặc tải bản **LTS** tại [https://nodejs.org](https://nodejs.org)
 
 Kiểm tra:
 
 ```powershell
-node -v
+node -v    # ≥ v18
 npm -v
 ```
 
-Kết quả mong đợi: `node` ≥ v18, `npm` ≥ 9.
-
 ---
 
-### 2.3. Cài yt-dlp
+### 2.2. Tải yt-dlp.exe
 
-**Cách 1 — winget (dễ nhất):**
+Project Windows dùng file **`yt-dlp.exe` đặt ngay trong thư mục project** (cùng cấp `windownserver.js`).
 
-```powershell
-winget install yt-dlp.yt-dlp
-```
-
-**Cách 2 — qua pip (nếu đã có Python):**
-
-```powershell
-pip install -U yt-dlp
-```
-
-**Cách 3 — tải file `.exe` thủ công:**
-
-1. Tải `yt-dlp.exe` từ [https://github.com/yt-dlp/yt-dlp/releases](https://github.com/yt-dlp/yt-dlp/releases)
-2. Đặt vào thư mục cố định, ví dụ: `C:\Tools\yt-dlp\`
-3. Thêm thư mục đó vào **PATH** (xem mục [7.3](#73-yt-dlp-không-được-nhận--không-chạy-được-yt-dlp))
+1. Tải từ [https://github.com/yt-dlp/yt-dlp/releases](https://github.com/yt-dlp/yt-dlp/releases)
+2. Copy `yt-dlp.exe` vào thư mục project, ví dụ: `D:\Tool\yt-playlist-harvester\yt-dlp.exe`
 
 Kiểm tra:
 
 ```powershell
-yt-dlp --version
+cd D:\Tool\yt-playlist-harvester
+.\yt-dlp.exe --version
 ```
+
+> **Lưu ý:** Không bắt buộc cài yt-dlp vào PATH nếu đã có `yt-dlp.exe` trong thư mục project.
 
 ---
 
-### 2.4. Cài ffmpeg
+### 2.3. Cài ffmpeg
 
-ffmpeg cần thiết để yt-dlp gộp video và audio thành file `.mp4`.
-
-**Cách 1 — winget:**
+ffmpeg **bắt buộc** để tải 480p (gộp video + audio):
 
 ```powershell
 winget install Gyan.FFmpeg
 ```
-
-**Cách 2 — tải bản build:** [https://www.gyan.dev/ffmpeg/builds/](https://www.gyan.dev/ffmpeg/builds/) → chọn *ffmpeg-release-essentials.zip*, giải nén và thêm thư mục `bin` vào PATH.
 
 Kiểm tra:
 
@@ -120,19 +86,45 @@ ffmpeg -version
 
 ---
 
-## 3. Clone project từ Git
+### 2.4. (Tùy chọn) Cài Git
 
-Chọn thư mục bạn muốn lưu project (ví dụ `Documents`):
+Chỉ cần nếu clone repo thay vì giải nén ZIP:
 
 ```powershell
-cd $HOME\Documents
-git clone https://github.com/<ten-user>/<ten-repo>.git ToolDownload
-cd ToolDownload
+winget install --id Git.Git -e
 ```
 
-> Thay `https://github.com/<ten-user>/<ten-repo>.git` bằng URL Git thực tế của bạn.
+---
 
-Nếu repo là **private**, Git sẽ hỏi đăng nhập GitHub (token hoặc Git Credential Manager).
+## 3. Lấy source code
+
+### Cách A — Clone Git
+
+```powershell
+cd D:\Tool
+git clone https://github.com/<ten-user>/<ten-repo>.git yt-playlist-harvester
+cd yt-playlist-harvester
+```
+
+### Cách B — Giải nén ZIP
+
+Giải nén vào ví dụ `D:\Tool\yt-playlist-harvester`.
+
+### Cấu trúc thư mục sau khi có source
+
+```
+yt-playlist-harvester/
+├── windownserver.js      # Server Windows — chạy file này
+├── server.js             # Server macOS/Linux
+├── ytdlp-cookies.js      # Hỗ trợ cookies YouTube
+├── download-queue.js     # Tải song song nhiều video
+├── ytdlp-log-filter.js   # Lọc log yt-dlp gọn hơn
+├── yt-dlp.exe            # ← bạn tự tải và đặt vào đây
+├── .env.example          # Mẫu cấu hình
+├── package.json
+├── public/               # Giao diện web
+└── downloads/            # Thư mục tải mặc định (tự tạo)
+```
 
 ---
 
@@ -141,212 +133,360 @@ Nếu repo là **private**, Git sẽ hỏi đăng nhập GitHub (token hoặc Gi
 ### Bước 1 — Cài dependencies Node.js
 
 ```powershell
-cd $HOME\Documents\ToolDownload
+cd D:\Tool\yt-playlist-harvester
 npm install
 ```
 
-### Bước 2 — (Tùy chọn) Tạo file cấu hình `.env`
+### Bước 2 — Đặt yt-dlp.exe
+
+Đảm bảo file `yt-dlp.exe` nằm trong thư mục project (xem [mục 2.2](#22-tải-yt-dlpexe)).
+
+### Bước 3 — (Khuyến nghị) Tạo file `.env`
 
 ```powershell
-echo PORT=3000 > .env
+copy .env.example .env
 ```
 
-Hoặc tạo file `.env` bằng Notepad với nội dung:
+Chỉnh `.env` nếu cần (xem [mục 5](#5-cấu-hình-env)).
 
-```
-PORT=3000
-```
-
-### Bước 3 — Khởi động server
+### Bước 4 — Khởi động server
 
 ```powershell
-npm start
-```
-
-Khi thành công, terminal hiển thị:
-
-```
-Server đang chạy tại http://localhost:3000
-Thư mục tải: C:\Users\<ten>\Documents\ToolDownload\downloads
-```
-
-### Bước 4 — Mở trình duyệt
-
-Truy cập: **http://localhost:3000**
-
-### Dừng server
-
-Nhấn `Ctrl + C` trong cửa sổ Terminal đang chạy server.
-
-### Chạy lại sau khi sửa code
-
-Mỗi lần sửa `server.js`, cần **dừng server** (`Ctrl + C`) rồi chạy lại:
-
-```powershell
-npm start
-```
-
----
-
-## 5. Extension VS Code / Cursor (khuyến nghị)
-
-Các extension giúp chỉnh sửa code dễ hơn khi mở project trên Windows.
-
-### Cách cài extension
-
-1. Mở **VS Code** hoặc **Cursor**
-2. Nhấn `Ctrl + Shift + X` (mở Marketplace)
-3. Gõ tên extension → bấm **Install**
-
-### Danh sách khuyến nghị
-
-| Extension | ID | Mục đích |
-|---|---|---|
-| **Tailwind CSS IntelliSense** | `bradlc.vscode-tailwindcss` | Gợi ý class Tailwind trong `index.html` |
-| **Prettier** | `esbenp.prettier-vscode` | Format code tự động |
-| **ESLint** | `dbaeumer.vscode-eslint` | Kiểm tra lỗi JavaScript |
-| **GitLens** | `eamodio.gitlens` | Xem lịch sử Git trực quan |
-| **DotENV** | `mikestead.dotenv` | Highlight file `.env` |
-
-### Mở project trong Cursor / VS Code
-
-```powershell
-cd $HOME\Documents\ToolDownload
-cursor .
+npm run start:win
 ```
 
 Hoặc:
 
 ```powershell
-code .
+node windownserver.js
 ```
 
-(Nếu lệnh `cursor` / `code` chưa có, mở app → **File → Open Folder** → chọn thư mục `ToolDownload`)
+> **Quan trọng:** Trên Windows dùng `windownserver.js`, **không** dùng `npm start` (lệnh đó chạy `server.js` cho Mac/Linux).
 
-### Cài extension bằng dòng lệnh (tùy chọn)
+Khi thành công, terminal hiển thị:
 
-**VS Code:**
-
-```powershell
-code --install-extension bradlc.vscode-tailwindcss
-code --install-extension esbenp.prettier-vscode
-code --install-extension dbaeumer.vscode-eslint
-code --install-extension eamodio.gitlens
-code --install-extension mikestead.dotenv
+```
+Server đang chạy tại http://localhost:3000
+Thư mục tải: D:\Tool\yt-playlist-harvester\downloads
+Cookies YouTube: chưa cấu hình (...)
+Tải song song: 2 video cùng lúc
 ```
 
-**Cursor:** dùng tương tự với lệnh `cursor --install-extension ...`
+### Bước 5 — Mở trình duyệt
+
+Truy cập: **http://localhost:3000**
+
+### Dừng / chạy lại server
+
+- Dừng: `Ctrl + C`
+- Chạy lại sau khi sửa code: `npm run start:win`
+
+---
+
+## 5. Cấu hình `.env`
+
+Copy từ `.env.example`:
+
+```env
+PORT=3000
+
+# Số video tải song song (mặc định 2, tối đa 4)
+DOWNLOAD_CONCURRENCY=2
+
+# Playlist >100 video — chọn MỘT trong hai cách:
+
+# Cách 1: lấy cookies từ trình duyệt đã đăng nhập YouTube
+YTDLP_COOKIES_FROM_BROWSER=edge
+# YTDLP_COOKIES_FROM_BROWSER=chrome
+
+# Cách 2: file cookies.txt (Netscape) trong thư mục project
+# YTDLP_COOKIES=cookies.txt
+```
+
+| Biến | Mặc định | Mô tả |
+|---|---|---|
+| `PORT` | `3000` | Cổng server |
+| `DOWNLOAD_CONCURRENCY` | `2` | Số video tải đồng thời (1–4) |
+| `YTDLP_COOKIES_FROM_BROWSER` | — | `edge`, `chrome`, `firefox`… |
+| `YTDLP_COOKIES` | `cookies.txt` | Đường dẫn file cookies Netscape |
+
+### Cookies cho playlist >100 video
+
+YouTube thường chỉ cho yt-dlp xem **100 video đầu** nếu không có cookies.
+
+**Cách 1 (dễ nhất):** Đăng nhập YouTube trên Edge/Chrome, thêm vào `.env`:
+
+```
+YTDLP_COOKIES_FROM_BROWSER=edge
+```
+
+**Cách 2:** Cài extension xuất cookies (Netscape), lưu `cookies.txt` vào thư mục project.
+
+> **Không share** file `cookies.txt` hoặc `.env` — chứa thông tin đăng nhập cá nhân.
 
 ---
 
 ## 6. Sử dụng giao diện web
 
-1. Dán **URL Playlist YouTube** vào ô đầu tiên
+1. Dán **URL Playlist YouTube**
 2. Nhập **Từ video thứ (X)** và **Đến video thứ (Y)** — đếm từ **1**
-3. Chọn độ phân giải: **480p / 720p / 1080p**
-4. *(Tùy chọn)* Nhập thư mục lưu, ví dụ:
-   - `.\downloads` — thư mục mặc định trong project
-   - `D:\Videos\YouTube` — ổ đĩa khác
+3. Chọn độ phân giải: **480p** (mặc định) / 720p / 1080p
+4. *(Tùy chọn)* Thư mục lưu:
+   - `.\downloads` — mặc định
+   - `D:\Videos\YouTube` — ổ khác
 5. Bấm **Bắt đầu tải hàng loạt**
 6. Theo dõi log và thanh tiến trình
 
-### Đổi giao diện Sáng / Tối
+### Gợi ý tải batch lớn (50–100 video)
 
-Bấm icon **Mặt trời / Mặt trăng** góc trên phải. Trạng thái được lưu tự động.
+- Giữ `DOWNLOAD_CONCURRENCY=2`
+- Chia nhỏ: #1–#25, #26–#50, …
+- Bật cookies nếu vượt quá video #100
+- Nếu hay thấy `Sleeping 5 seconds` → hạ `DOWNLOAD_CONCURRENCY=1`
 
 ---
 
-## 7. Xử lý lỗi thường gặp trên Windows
+## 7. Quy tắc đặt tên file
 
-### 7.1. `npm : File cannot be loaded because running scripts is disabled`
+Ví dụ video #120, tiêu đề *"Anh cần em"*:
 
-PowerShell chặn script. Chạy **một lần** (PowerShell **Run as Administrator**):
+```
+120.jpg                        ← ảnh bìa (chỉ số thứ tự)
+120 Anh cần em.mp4             ← video (số thứ tự + tiêu đề)
+```
+
+| Quy tắc | Chi tiết |
+|---|---|
+| STT | Vị trí gốc trong playlist; `01`–`99` có 2 chữ số, `100+` giữ nguyên |
+| Tiêu đề | Lấy từ playlist (nhanh); có thể là bản dịch tùy tài khoản YouTube |
+| Ký tự bị xóa | `\ / : * ? " < > \|` |
+
+---
+
+## 8. Share source cho người khác
+
+### Người share cần gửi
+
+| Gửi | Không gửi |
+|---|---|
+| Toàn bộ source (trừ `node_modules/`, `downloads/`) | `node_modules/` |
+| File `.env.example` | `.env`, `cookies.txt` |
+| Hướng dẫn link tới file này | Video đã tải trong `downloads/` |
+
+### Người nhận cần tự cài/tải
+
+1. **Node.js** LTS
+2. **ffmpeg**
+3. **`yt-dlp.exe`** → đặt vào thư mục project
+4. Chạy `npm install`
+5. Copy `.env.example` → `.env` (tùy chọn)
+6. Chạy `npm run start:win`
+
+### Checklist nhanh cho người nhận
+
+```powershell
+# 1. Cài công cụ (một lần)
+winget install OpenJS.NodeJS.LTS
+winget install Gyan.FFmpeg
+
+# 2. Giải nén / clone source, đặt yt-dlp.exe vào thư mục project
+
+# 3. Cài & chạy
+cd D:\Tool\yt-playlist-harvester
+npm install
+copy .env.example .env
+npm run start:win
+
+# 4. Mở trình duyệt: http://localhost:3000
+```
+
+---
+
+## 9. Xử lý lỗi thường gặp
+
+### Bảng tra nhanh
+
+| Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |
+|---|---|---|
+| `'node' is not recognized` | Chưa cài Node.js hoặc chưa mở lại Terminal | Cài Node LTS, đóng/mở lại Terminal |
+| `npm : running scripts is disabled` | PowerShell chặn script | [9.1](#91-npm--running-scripts-is-disabled) |
+| `Cannot find module 'express'` | Chưa `npm install` | Chạy `npm install` trong thư mục project |
+| `Cannot find module './ytdlp-cookies.js'` | Copy source thiếu file | Copy đủ toàn bộ file `.js` trong repo |
+| Server chạy nhưng tải lỗi / 404 | Dùng nhầm `npm start` (Mac) | Dùng `npm run start:win` |
+| `Không chạy được yt-dlp` | Thiếu `yt-dlp.exe` trong project | [9.3](#93-không-chạy-được-yt-dlp) |
+| Có `.webm` nhưng không có `.mp4` | Thiếu ffmpeg | [9.6](#96-video-tải-nhưng-không-có-mp4--lỗi-merge) |
+| Chỉ thấy 100 video / lỗi #101+ | Thiếu cookies YouTube | [9.5](#95-không-có-video-nào-trong-khoảng-101101-yt-dlp-chỉ-thấy-100-video) |
+| File `01 video.mp4` | Playlist không trả tiêu đề | [9.4](#94-file-tên-01-videomp4-không-có-tiêu-đề) |
+| `Sleeping 5.00 seconds` | YouTube rate limit | [9.7](#97-download-sleeping-500-seconds-as-required-by-the-site) |
+| `EADDRINUSE :3000` | Port 3000 bị chiếm | [9.9](#99-port-3000-đã-bị-sử-dụng-eaddrinuse) |
+
+---
+
+### 9.1. `npm : running scripts is disabled`
+
+PowerShell chặn script — chạy **một lần** (Administrator):
 
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
-Sau đó thử lại `npm install`.
-
 ---
 
-### 7.2. `HTTP 404` khi bấm tải
+### 9.2. `HTTP 404` khi bấm tải
 
-Server cũ vẫn chạy hoặc chưa khởi động lại sau khi sửa code.
+Server cũ vẫn chạy hoặc chưa restart:
 
 ```powershell
-# Tìm process đang chiếm port 3000
 netstat -ano | findstr :3000
-
-# Dừng theo PID (thay 12345 bằng PID thực tế)
-taskkill /PID 12345 /F
-
-# Chạy lại
-npm start
+taskkill /PID <PID> /F
+npm run start:win
 ```
 
 ---
 
-### 7.3. `yt-dlp` không được nhận / `Không chạy được yt-dlp`
+### 9.3. `Không chạy được yt-dlp`
 
-1. Kiểm tra:
+1. Kiểm tra `yt-dlp.exe` có trong thư mục project:
 
 ```powershell
-where yt-dlp
+dir yt-dlp.exe
+.\yt-dlp.exe --version
 ```
 
-2. Nếu không có kết quả → cài lại yt-dlp (mục [2.3](#23-cài-yt-dlp))
-3. **Đóng và mở lại** Terminal sau khi cài
-4. Nếu dùng file `.exe` thủ công, thêm vào PATH:
-   - `Win + S` → gõ **Environment Variables**
-   - *Edit the system environment variables* → **Environment Variables**
-   - Trong *User variables* → chọn **Path** → **Edit** → **New**
-   - Thêm đường dẫn chứa `yt-dlp.exe` (vd: `C:\Tools\yt-dlp`)
-   - OK → mở Terminal mới
+2. Tải lại từ [releases](https://github.com/yt-dlp/yt-dlp/releases) nếu thiếu.
 
 ---
 
-### 7.4. Video tải nhưng không có file `.mp4` / lỗi merge
+### 9.4. File tên `01 video.mp4` (không có tiêu đề)
 
-Cài hoặc cập nhật **ffmpeg** (mục [2.4](#24-cài-ffmpeg)), kiểm tra:
+Playlist không trả tiêu đề — thử bật cookies trong `.env`.
+
+---
+
+### 9.5. `Không có video nào trong khoảng 101–101 (yt-dlp chỉ thấy 100 video)`
+
+Playlist >100 video cần cookies — xem [mục 5](#5-cấu-hình-env).
+
+---
+
+### 9.6. Video tải nhưng không có `.mp4` / lỗi merge
+
+Cài ffmpeg:
 
 ```powershell
+winget install Gyan.FFmpeg
 ffmpeg -version
 ```
 
 ---
 
-### 7.5. Không ghi được vào thư mục lưu tùy chỉnh
+### 9.7. `[download] Sleeping 5.00 seconds as required by the site...`
 
-- Dùng đường dẫn Windows: `D:\Videos\YouTube` hoặc `.\downloads`
-- Tránh ký tự đặc biệt trong đường dẫn
-- Đảm bảo bạn có quyền ghi vào ổ đĩa đó
+YouTube rate limit. Hạ `DOWNLOAD_CONCURRENCY=1` trong `.env`, thêm cookies, nghỉ vài phút rồi thử lại.
 
 ---
 
-### 7.6. Firewall hỏi khi chạy `npm start`
+### 9.8. Firewall hỏi khi chạy server
 
-Chọn **Allow access** để trình duyệt trên cùng máy truy cập `localhost:3000`. Tool chỉ lắng nghe cục bộ, không cần mở port ra mạng ngoài.
+Chọn **Allow access** — tool chỉ lắng nghe `localhost`, không cần mở port ra internet.
+
+---
+
+### 9.9. Port 3000 đã bị sử dụng (`EADDRINUSE`)
+
+Server cũ vẫn chạy ngầm hoặc app khác chiếm port:
+
+```powershell
+netstat -ano | findstr :3000
+taskkill /PID <PID> /F
+npm run start:win
+```
+
+Hoặc đổi port trong `.env`: `PORT=3001` rồi mở `http://localhost:3001`.
+
+---
+
+### 9.10. `'node' is not recognized` / `'npm' is not recognized`
+
+Node.js chưa cài hoặc Terminal chưa nhận PATH:
+
+1. Cài Node LTS: `winget install OpenJS.NodeJS.LTS`
+2. **Đóng hết** cửa sổ Terminal/PowerShell
+3. Mở Terminal mới, kiểm tra: `node -v`
+
+---
+
+### 9.11. Dùng nhầm `npm start` thay vì `npm run start:win`
+
+| Lệnh | Chạy file | Dùng cho |
+|---|---|---|
+| `npm start` | `server.js` | macOS / Linux |
+| `npm run start:win` | `windownserver.js` | **Windows** |
+
+Triệu chứng: server báo chạy OK nhưng không tìm được `yt-dlp.exe`, hoặc tải lỗi lạ.
+
+---
+
+### 9.12. `Cannot find module 'express'` (hoặc module khác)
+
+Chưa cài dependencies:
+
+```powershell
+cd D:\Tool\yt-playlist-harvester
+npm install
+```
+
+---
+
+### 9.13. `Cannot find module './ytdlp-cookies.js'` (hoặc file `.js` khác)
+
+Copy source **thiếu file** khi share ZIP. Cần đủ các file:
+
+- `windownserver.js`
+- `ytdlp-cookies.js`
+- `download-queue.js`
+- `ytdlp-log-filter.js`
+- `package.json`
+
+---
+
+### 9.14. Trang web trắng / không mở được `localhost:3000`
+
+1. Kiểm tra server đang chạy (terminal không báo lỗi)
+2. Thử `http://127.0.0.1:3000`
+3. Tắt VPN/proxy nếu có
+4. Kiểm tra firewall đã Allow
+
+---
+
+### 9.15. Lỗi cookies / `Sign in to confirm you're not a bot`
+
+1. Đăng nhập YouTube trên Edge/Chrome
+2. Thêm vào `.env`: `YTDLP_COOKIES_FROM_BROWSER=edge`
+3. Khởi động lại server
+4. Cập nhật yt-dlp: tải `yt-dlp.exe` mới nhất
+
+---
+
+### 9.16. Không ghi được thư mục lưu tùy chỉnh
+
+- Dùng đường dẫn Windows: `D:\Videos\YouTube` hoặc `.\downloads`
+- Tránh ký tự đặc biệt
+- Đảm bảo có quyền ghi ổ đĩa đó
 
 ---
 
 ## Tóm tắt nhanh (cheat sheet)
 
 ```powershell
-# 1. Cài công cụ (chạy một lần)
-winget install Git.Git
 winget install OpenJS.NodeJS.LTS
-winget install yt-dlp.yt-dlp
 winget install Gyan.FFmpeg
+# Tải yt-dlp.exe → đặt vào thư mục project
 
-# 2. Clone & chạy
-cd $HOME\Documents
-git clone https://github.com/<ten-user>/<ten-repo>.git ToolDownload
-cd ToolDownload
+cd D:\Tool\yt-playlist-harvester
 npm install
-npm start
-
-# 3. Mở trình duyệt
+copy .env.example .env
+npm run start:win
 # http://localhost:3000
 ```
 
