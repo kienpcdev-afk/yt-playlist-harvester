@@ -50,7 +50,11 @@ function formatSTT(playlistPosition) {
   return String(playlistPosition).padStart(2, '0');
 }
 
-const YTDLP_EXTRACTOR_ARGS = ['--extractor-args', 'youtube:player_client=android,tvhtml5'];
+function getYtDlpExtractorArgs() {
+  // android/tvhtml5 không tương thích --cookies; dùng web khi có cookies (playlist >100)
+  const client = hasYtDlpCookies() ? 'web' : 'android,tvhtml5';
+  return ['--extractor-args', `youtube:player_client=${client}`];
+}
 
 function buildThumbFilename(stt) {
   return stt;
@@ -85,7 +89,7 @@ function buildFormatString(resolution) {
 function runYtDlpFlatPlaylist(playlistUrl, playlistItems) {
   const args = [
     ...getYtDlpCookieArgs(),
-    ...YTDLP_EXTRACTOR_ARGS,
+    ...getYtDlpExtractorArgs(),
     '--flat-playlist', '-J',
   ];
   if (playlistItems) {
@@ -145,7 +149,7 @@ function downloadVideo(videoUrl, outputPath, resolution, onLog) {
     const logLine = createYtDlpProgressLogger(onLog);
     const args = [
       ...getYtDlpCookieArgs(),
-      ...YTDLP_EXTRACTOR_ARGS,
+      ...getYtDlpExtractorArgs(),
       '-f', buildFormatString(resolution),
       '--merge-output-format', 'mp4',
       '--no-keep-video',
@@ -352,4 +356,6 @@ app.listen(PORT, () => {
     console.log('Cookies YouTube: chưa cấu hình (playlist >100 video cần cookies — xem .env.example)');
   }
   console.log(`Tải song song: ${getDownloadConcurrency()} video cùng lúc`);
+  const playerClient = hasYtDlpCookies() ? 'web' : 'android,tvhtml5';
+  console.log(`YouTube player_client: ${playerClient}${hasYtDlpCookies() ? ' (cookies bật)' : ''}`);
 });
