@@ -8,7 +8,13 @@ const { execFile, spawn } = require('child_process');
 const { promisify } = require('util');
 
 const execFileAsync = promisify(execFile);
-const { getYtDlpCookieArgs, describeYtDlpCookies, hasYtDlpCookies } = require('./ytdlp-cookies');
+const {
+  getYtDlpCookieArgs,
+  getYtDlpJsRuntimeArgs,
+  describeYtDlpCookies,
+  describeYtDlpJsRuntime,
+  hasYtDlpCookies,
+} = require('./ytdlp-cookies');
 const { createYtDlpProgressLogger } = require('./ytdlp-log-filter');
 const { getDownloadConcurrency, runWithConcurrency } = require('./download-queue');
 
@@ -89,6 +95,7 @@ function buildFormatString(resolution) {
 function runYtDlpFlatPlaylist(playlistUrl, playlistItems) {
   const args = [
     ...getYtDlpCookieArgs(),
+    ...getYtDlpJsRuntimeArgs(),
     ...getYtDlpExtractorArgs(),
     '--flat-playlist', '-J',
   ];
@@ -149,6 +156,7 @@ function downloadVideo(videoUrl, outputPath, resolution, onLog) {
     const logLine = createYtDlpProgressLogger(onLog);
     const args = [
       ...getYtDlpCookieArgs(),
+      ...getYtDlpJsRuntimeArgs(),
       ...getYtDlpExtractorArgs(),
       '-f', buildFormatString(resolution),
       '--merge-output-format', 'mp4',
@@ -356,6 +364,10 @@ app.listen(PORT, () => {
     console.log('Cookies YouTube: chưa cấu hình (playlist >100 video cần cookies — xem .env.example)');
   }
   console.log(`Tải song song: ${getDownloadConcurrency()} video cùng lúc`);
+  const jsRuntime = describeYtDlpJsRuntime();
+  if (jsRuntime) {
+    console.log(`YouTube JS runtime: ${jsRuntime}`);
+  }
   const playerClient = hasYtDlpCookies() ? 'web' : 'android,tvhtml5';
   console.log(`YouTube player_client: ${playerClient}${hasYtDlpCookies() ? ' (cookies bật)' : ''}`);
 });

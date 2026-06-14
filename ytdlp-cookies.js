@@ -12,6 +12,22 @@ function resolveCookieFile(rawPath) {
   return fs.existsSync(resolved) ? resolved : null;
 }
 
+function getYtDlpJsRuntimeValue() {
+  const raw = (process.env.YTDLP_JS_RUNTIME ?? 'node').trim();
+  if (!raw || raw === 'none' || raw === 'off') return null;
+  return raw;
+}
+
+function getYtDlpJsRuntimeArgs() {
+  const runtime = getYtDlpJsRuntimeValue();
+  if (!runtime) return [];
+  return ['--js-runtimes', runtime];
+}
+
+function describeYtDlpJsRuntime() {
+  return getYtDlpJsRuntimeValue();
+}
+
 function getYtDlpCookieArgs() {
   const fromBrowser = (process.env.YTDLP_COOKIES_FROM_BROWSER || '').trim();
   if (fromBrowser) {
@@ -48,6 +64,8 @@ function hasYtDlpCookies() {
 
 module.exports = {
   getYtDlpCookieArgs,
+  getYtDlpJsRuntimeArgs,
   describeYtDlpCookies,
+  describeYtDlpJsRuntime,
   hasYtDlpCookies,
 };

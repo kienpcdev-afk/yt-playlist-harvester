@@ -318,6 +318,7 @@ npm run start:win
 | Chỉ thấy 100 video / lỗi #101+ | Thiếu cookies YouTube | [9.5](#95-không-có-video-nào-trong-khoảng-101101-yt-dlp-chỉ-thấy-100-video) |
 | File `01 video.mp4` | Playlist không trả tiêu đề | [9.4](#94-file-tên-01-videomp4-không-có-tiêu-đề) |
 | `Sleeping 5.00 seconds` | YouTube rate limit | [9.7](#97-download-sleeping-500-seconds-as-required-by-the-site) |
+| `n challenge solving failed` / `Only images are available` | yt-dlp thiếu JS runtime | [9.17](#917-n-challenge-solving-failed--only-images-are-available) |
 | `EADDRINUSE :3000` | Port 3000 bị chiếm | [9.9](#99-port-3000-đã-bị-sử-dụng-eaddrinuse) |
 
 ---
@@ -473,6 +474,27 @@ Copy source **thiếu file** khi share ZIP. Cần đủ các file:
 - Dùng đường dẫn Windows: `D:\Videos\YouTube` hoặc `.\downloads`
 - Tránh ký tự đặc biệt
 - Đảm bảo có quyền ghi ổ đĩa đó
+
+---
+
+### 9.17. `n challenge solving failed` / `Only images are available`
+
+YouTube yêu cầu yt-dlp giải JS challenge. Bản code mới tự truyền `--js-runtimes node` (dùng Node.js đã cài cho server).
+
+**Nếu vẫn lỗi**, kiểm tra thủ công:
+
+```powershell
+.\yt-dlp.exe --js-runtimes node "https://www.youtube.com/watch?v=VIDEO_ID" --list-formats
+```
+
+Nếu lệnh trên OK nhưng tool vẫn lỗi → cập nhật source mới nhất và restart server (`npm run start:win`).
+
+Tùy chọn trong `.env`:
+
+```env
+YTDLP_JS_RUNTIME=node
+# hoặc: YTDLP_JS_RUNTIME=deno  (cài: winget install DenoLand.Deno)
+```
 
 ---
 
