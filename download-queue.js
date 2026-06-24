@@ -4,10 +4,12 @@ function getDownloadConcurrency() {
   return Math.min(raw, 4);
 }
 
-async function runWithConcurrency(items, workerFn, concurrency) {
-  if (items.length === 0) return [];
+async function runWithConcurrency(items, workerFn, concurrency, options = {}) {
+  const { continueOnError = false } = options;
+  if (items.length === 0) return { results: [], failures: [] };
 
   const results = new Array(items.length);
+  const failures = [];
   let nextIndex = 0;
   let failed = null;
 
@@ -18,8 +20,12 @@ async function runWithConcurrency(items, workerFn, concurrency) {
       try {
         results[i] = await workerFn(items[i], i);
       } catch (err) {
-        failed = err;
-        break;
+        if (continueOnError) {
+          failures.push({ index: i, item: items[i], error: err });
+        } else {
+          failed = err;
+          break;
+        }
       }
     }
   }
@@ -29,7 +35,7 @@ async function runWithConcurrency(items, workerFn, concurrency) {
   );
 
   if (failed) throw failed;
-  return results;
+  return { results: results.filter(Boolean), failures };
 }
 
 module.exports = { getDownloadConcurrency, runWithConcurrency };

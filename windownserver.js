@@ -17,6 +17,17 @@ const {
 } = require('./ytdlp-cookies');
 const { createYtDlpProgressLogger } = require('./ytdlp-log-filter');
 const { getDownloadConcurrency, runWithConcurrency } = require('./download-queue');
+const {
+  getYtDlpRetryArgs,
+  getVideoRetryAttempts,
+  getVideoRetryDelayMs,
+  getGlobalDownloadConcurrency,
+  acquireDownloadSlot,
+  releaseDownloadSlot,
+  cleanupPartialDownload,
+  isTransientDownloadError,
+  sleep,
+} = require('./ytdlp-resilience');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -151,13 +162,14 @@ async function downloadVideoAndThumbnail(videoUrl, videoPath, thumbPath, videoId
   await Promise.all([videoTask, thumbTask]);
 }
 
-function downloadVideo(videoUrl, outputPath, resolution, onLog) {
+function runDownloadVideoOnce(videoUrl, outputPath, resolution, onLog) {
   return new Promise((resolve, reject) => {
     const logLine = createYtDlpProgressLogger(onLog);
     const args = [
       ...getYtDlpCookieArgs(),
       ...getYtDlpJsRuntimeArgs(),
       ...getYtDlpExtractorArgs(),
+      ...getYtDlpRetryArgs(),
       '-f', buildFormatString(resolution),
       '--merge-output-format', 'mp4',
       '--no-keep-video',
@@ -188,6 +200,34 @@ function downloadVideo(videoUrl, outputPath, resolution, onLog) {
       else reject(new Error(stderr.trim() || `yt-dlp thoát với mã ${code}`));
     });
   });
+}
+
+async function downloadVideo(videoUrl, outputPath, resolution, onLog) {
+  const attempts = getVideoRetryAttempts();
+  let lastErr;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    if (attempt > 1) {
+      cleanupPartialDownload(outputPath);
+      onLog(`[retry] Lỗi mạng — thử lại lần ${attempt}/${attempts}...`);
+      await sleep(getVideoRetryDelayMs(attempt - 1));
+    }
+
+    await acquireDownloadSlot();
+    try {
+      await runDownloadVideoOnce(videoUrl, outputPath, resolution, onLog);
+      return;
+    } catch (err) {
+      lastErr = err;
+      if (attempt >= attempts || !isTransientDownloadError(err.message)) {
+        throw err;
+      }
+    } finally {
+      releaseDownloadSlot();
+    }
+  }
+
+  throw lastErr;
 }
 
 async function downloadThumbnail(videoId, outputPath) {
@@ -301,7 +341,7 @@ app.post('/api/playlist/download', async (req, res) => {
 
     let completedCount = 0;
 
-    const results = await runWithConcurrency(videos, async (video, i) => {
+    const { results, failures } = await runWithConcurrency(videos, async (video, i) => {
       const { playlistPosition, title, videoUrl } = video;
       const stt = formatSTT(playlistPosition);
       const baseName = buildFilename(stt, title);
@@ -339,14 +379,31 @@ app.post('/api/playlist/download', async (req, res) => {
         videoPath,
         thumbPath,
       };
-    }, concurrency);
+    }, concurrency, { continueOnError: true });
+
+    for (const failure of failures) {
+      const stt = formatSTT(failure.item.playlistPosition);
+      log('error', `[${stt}] Lỗi: ${failure.error.message}`, {
+        stt,
+        videoId: failure.item.id,
+        title: failure.item.title,
+      });
+    }
 
     const removed = cleanupLeftoverFiles(saveDir);
     if (removed.length > 0) {
       log('cleanup', `Đã dọn ${removed.length} file thừa (.webm, .part, ...)`, { removed });
     }
 
-    log('done', `Tải xong ${results.length} video`, { results, downloadDir: saveDir });
+    const doneMsg = failures.length > 0
+      ? `Tải xong ${results.length}/${videos.length} video (${failures.length} lỗi)`
+      : `Tải xong ${results.length} video`;
+    log('done', doneMsg, { results, failures: failures.map((f) => ({
+      stt: formatSTT(f.item.playlistPosition),
+      videoId: f.item.id,
+      title: f.item.title,
+      error: f.error.message,
+    })), downloadDir: saveDir });
     res.end();
   } catch (err) {
     log('error', err.message);
@@ -364,6 +421,11 @@ app.listen(PORT, () => {
     console.log('Cookies YouTube: chưa cấu hình (playlist >100 video cần cookies — xem .env.example)');
   }
   console.log(`Tải song song: ${getDownloadConcurrency()} video cùng lúc`);
+  const globalLimit = getGlobalDownloadConcurrency();
+  if (globalLimit !== null) {
+    console.log(`Giới hạn tải toàn cục: ${globalLimit} video cùng lúc (mọi tab)`);
+  }
+  console.log(`Retry mạng: yt-dlp x${process.env.YTDLP_RETRIES || 20}, video x${getVideoRetryAttempts()}`);
   const jsRuntime = describeYtDlpJsRuntime();
   if (jsRuntime) {
     console.log(`YouTube JS runtime: ${jsRuntime}`);
