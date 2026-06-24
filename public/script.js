@@ -199,8 +199,22 @@ function handleSSEEvent(event, data) {
       appendLog(msg, 'text-emerald-400 font-bold');
       break;
 
+    case 'skip':
+      appendLog(msg, 'text-yellow-500 font-bold');
+      break;
+
+    case 'skipped':
+      if (data.skipped?.length) {
+        appendLog(msg, 'text-amber-400 font-bold');
+      } else if (data.skippedItem?.videoUrl && msg.startsWith('  →')) {
+        appendLog(msg, 'text-amber-200');
+      } else {
+        appendLog(msg, 'text-amber-300');
+      }
+      break;
+
     case 'done':
-      completedVideos = totalVideos;
+      completedVideos = data.results?.length ?? totalVideos;
       updateProgress();
       appendLog(msg, 'text-emerald-400');
       appendLog('✓ Hoàn thành toàn bộ quá trình tải.', 'text-white');

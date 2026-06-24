@@ -16,17 +16,13 @@ const {
   hasYtDlpCookies,
 } = require('./ytdlp-cookies');
 const { createYtDlpProgressLogger } = require('./ytdlp-log-filter');
-const { getDownloadConcurrency, runWithConcurrency } = require('./download-queue');
+const { getDownloadConcurrency, runWithConcurrency, logSkippedSummary } = require('./download-queue');
 const {
   getYtDlpRetryArgs,
-  getVideoRetryAttempts,
-  getVideoRetryDelayMs,
   getGlobalDownloadConcurrency,
   acquireDownloadSlot,
   releaseDownloadSlot,
   cleanupPartialDownload,
-  isTransientDownloadError,
-  sleep,
 } = require('./ytdlp-resilience');
 
 function findYtDlpInWinGetPackages() {
@@ -181,7 +177,7 @@ async function fetchPlaylistEntries(playlistUrl, fromIndex, toIndex) {
 }
 
 async function downloadVideoAndThumbnail(videoUrl, videoPath, thumbPath, videoId, resolution, onLog, onVideoDone, onThumbDone, onThumbError) {
-  const videoTask = downloadVideo(videoUrl, videoPath, resolution, onLog).then(() => {
+  const videoTask = downloadVideoWithSlot(videoUrl, videoPath, resolution, onLog).then(() => {
     onVideoDone();
   });
 
@@ -198,7 +194,7 @@ async function downloadVideoAndThumbnail(videoUrl, videoPath, thumbPath, videoId
   await Promise.all([videoTask, thumbTask]);
 }
 
-function runDownloadVideoOnce(videoUrl, outputPath, resolution, onLog) {
+function downloadVideo(videoUrl, outputPath, resolution, onLog) {
   return new Promise((resolve, reject) => {
     const logLine = createYtDlpProgressLogger(onLog);
     const args = [
@@ -243,32 +239,13 @@ function runDownloadVideoOnce(videoUrl, outputPath, resolution, onLog) {
   });
 }
 
-async function downloadVideo(videoUrl, outputPath, resolution, onLog) {
-  const attempts = getVideoRetryAttempts();
-  let lastErr;
-
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    if (attempt > 1) {
-      cleanupPartialDownload(outputPath);
-      onLog(`[retry] Lỗi mạng — thử lại lần ${attempt}/${attempts}...`);
-      await sleep(getVideoRetryDelayMs(attempt - 1));
-    }
-
-    await acquireDownloadSlot();
-    try {
-      await runDownloadVideoOnce(videoUrl, outputPath, resolution, onLog);
-      return;
-    } catch (err) {
-      lastErr = err;
-      if (attempt >= attempts || !isTransientDownloadError(err.message)) {
-        throw err;
-      }
-    } finally {
-      releaseDownloadSlot();
-    }
+async function downloadVideoWithSlot(videoUrl, outputPath, resolution, onLog) {
+  await acquireDownloadSlot();
+  try {
+    await downloadVideo(videoUrl, outputPath, resolution, onLog);
+  } finally {
+    releaseDownloadSlot();
   }
-
-  throw lastErr;
 }
 
 async function downloadThumbnail(videoId, outputPath) {
@@ -402,17 +379,28 @@ app.post('/api/playlist/download', async (req, res) => {
         total: videos.length,
       });
 
-      await downloadVideoAndThumbnail(
-        videoUrl,
-        videoPath,
-        thumbPath,
-        video.id,
-        resHeight,
-        (line) => log('progress', line, { stt, videoId: video.id }),
-        () => log('video_done', `[${stt}] Đã tải video xong`, { stt, path: videoPath }),
-        (url) => log('thumb_done', `[${stt}] Đã tải ảnh bìa`, { stt, path: thumbPath, url }),
-        (err) => log('thumb_error', `[${stt}] Lỗi ảnh bìa: ${err.message}`, { stt }),
-      );
+      try {
+        await downloadVideoAndThumbnail(
+          videoUrl,
+          videoPath,
+          thumbPath,
+          video.id,
+          resHeight,
+          (line) => log('progress', line, { stt, videoId: video.id }),
+          () => log('video_done', `[${stt}] Đã tải video xong`, { stt, path: videoPath }),
+          (url) => log('thumb_done', `[${stt}] Đã tải ảnh bìa`, { stt, path: thumbPath, url }),
+          (err) => log('thumb_error', `[${stt}] Lỗi ảnh bìa: ${err.message}`, { stt }),
+        );
+      } catch (err) {
+        cleanupPartialDownload(videoPath);
+        log('skip', `[${stt}] Bỏ qua, chuyển sang video tiếp theo`, {
+          stt,
+          videoId: video.id,
+          title,
+          videoUrl,
+        });
+        throw err;
+      }
 
       completedCount += 1;
       log('item_done', `[${stt}] Hoàn tất`, { stt, index: completedCount, total: videos.length });
@@ -426,29 +414,17 @@ app.post('/api/playlist/download', async (req, res) => {
       };
     }, concurrency, { continueOnError: true });
 
-    for (const failure of failures) {
-      const stt = formatSTT(failure.item.playlistPosition);
-      log('error', `[${stt}] Lỗi: ${failure.error.message}`, {
-        stt,
-        videoId: failure.item.id,
-        title: failure.item.title,
-      });
-    }
+    const skipped = logSkippedSummary(log, failures, formatSTT);
 
     const removed = cleanupLeftoverFiles(saveDir);
     if (removed.length > 0) {
       log('cleanup', `Đã dọn ${removed.length} file thừa (.webm, .part, ...)`, { removed });
     }
 
-    const doneMsg = failures.length > 0
-      ? `Tải xong ${results.length}/${videos.length} video (${failures.length} lỗi)`
+    const doneMsg = skipped.length > 0
+      ? `Tải xong ${results.length}/${videos.length} video (${skipped.length} bỏ qua)`
       : `Tải xong ${results.length} video`;
-    log('done', doneMsg, { results, failures: failures.map((f) => ({
-      stt: formatSTT(f.item.playlistPosition),
-      videoId: f.item.id,
-      title: f.item.title,
-      error: f.error.message,
-    })), downloadDir: saveDir });
+    log('done', doneMsg, { results, skipped, downloadDir: saveDir });
     res.end();
   } catch (err) {
     log('error', err.message);
@@ -471,7 +447,7 @@ app.listen(PORT, () => {
   if (globalLimit !== null) {
     console.log(`Giới hạn tải toàn cục: ${globalLimit} video cùng lúc (mọi tab)`);
   }
-  console.log(`Retry mạng: yt-dlp x${process.env.YTDLP_RETRIES || 20}, video x${getVideoRetryAttempts()}`);
+  console.log(`yt-dlp retry: ${process.env.YTDLP_RETRIES || 10} lần/video, lỗi thì bỏ qua và tải tiếp`);
   const jsRuntime = describeYtDlpJsRuntime();
   if (jsRuntime) {
     console.log(`YouTube JS runtime: ${jsRuntime}`);

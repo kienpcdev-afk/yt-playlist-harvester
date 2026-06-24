@@ -1,6 +1,3 @@
-const fs = require('fs');
-const path = require('path');
-
 function parsePositiveInt(raw, fallback, max) {
   const n = parseInt(raw, 10);
   if (!Number.isInteger(n) || n < 1) return fallback;
@@ -8,26 +5,11 @@ function parsePositiveInt(raw, fallback, max) {
 }
 
 function getYtDlpRetryArgs() {
-  const retries = parsePositiveInt(process.env.YTDLP_RETRIES, 20, 100);
-  const fragmentRetries = parsePositiveInt(process.env.YTDLP_FRAGMENT_RETRIES, 50, 200);
-  const fileAccessRetries = parsePositiveInt(process.env.YTDLP_FILE_ACCESS_RETRIES, 10, 50);
-
+  const retries = parsePositiveInt(process.env.YTDLP_RETRIES, 10, 20);
   return [
     '--retries', String(retries),
-    '--fragment-retries', String(fragmentRetries),
-    '--file-access-retries', String(fileAccessRetries),
-    '--retry-sleep', 'exp=1:8',
-    '--concurrent-fragments', '1',
+    '--fragment-retries', String(retries),
   ];
-}
-
-function getVideoRetryAttempts() {
-  return parsePositiveInt(process.env.YTDLP_VIDEO_RETRY, 3, 5);
-}
-
-function getVideoRetryDelayMs(attempt) {
-  const base = parsePositiveInt(process.env.YTDLP_VIDEO_RETRY_DELAY_SEC, 5, 60);
-  return base * attempt * 1000;
 }
 
 function getGlobalDownloadConcurrency() {
@@ -64,6 +46,8 @@ function releaseDownloadSlot() {
 }
 
 function cleanupPartialDownload(outputPath) {
+  const fs = require('fs');
+  const path = require('path');
   const dir = path.dirname(outputPath);
   const base = path.basename(outputPath);
   if (!fs.existsSync(dir)) return;
@@ -76,33 +60,10 @@ function cleanupPartialDownload(outputPath) {
   }
 }
 
-function isTransientDownloadError(message) {
-  const text = String(message || '').toLowerCase();
-  return (
-    text.includes('more expected')
-    || text.includes('giving up after')
-    || text.includes('connection reset')
-    || text.includes('connection aborted')
-    || text.includes('timed out')
-    || text.includes('timeout')
-    || text.includes('unable to download')
-    || text.includes('http error 5')
-    || text.includes('http error 429')
-  );
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 module.exports = {
   getYtDlpRetryArgs,
-  getVideoRetryAttempts,
-  getVideoRetryDelayMs,
   getGlobalDownloadConcurrency,
   acquireDownloadSlot,
   releaseDownloadSlot,
   cleanupPartialDownload,
-  isTransientDownloadError,
-  sleep,
 };
