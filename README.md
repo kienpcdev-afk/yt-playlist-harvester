@@ -53,7 +53,8 @@ Mở trình duyệt: **http://localhost:3000**
 
 ### Windows
 
-Xem hướng dẫn chi tiết: **[INSTALL-WINDOWS.md](./INSTALL-WINDOWS.md)**
+- **Client mới (tóm tắt nhanh):** [CLIENT-SETUP.md](./CLIENT-SETUP.md)
+- **Hướng dẫn đầy đủ:** [INSTALL-WINDOWS.md](./INSTALL-WINDOWS.md)
 
 **Chạy bằng Node.js (phát triển):**
 

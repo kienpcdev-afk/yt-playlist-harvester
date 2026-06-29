@@ -2,6 +2,8 @@
 
 Tài liệu này hướng dẫn từ đầu: nhận source code, cài phần mềm cần thiết, cấu hình, chạy ứng dụng và **cài Extension Chrome** để tự động cập nhật cookie YouTube trên **Windows 10 / 11**.
 
+> **Client mới chỉ cần cài nhanh?** Xem [CLIENT-SETUP.md](./CLIENT-SETUP.md) (tóm tắt 1 trang).
+
 ---
 
 ## Mục lục
