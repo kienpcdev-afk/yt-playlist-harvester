@@ -7,6 +7,8 @@
     "start": "node server.js",
     "start:win": "node windownserver.js",
     "dev": "node server.js",
+    "setup:cookies": "node scripts/setup-cookies.js",
+    "setup:browser-cookies": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-browser-cookies.ps1",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

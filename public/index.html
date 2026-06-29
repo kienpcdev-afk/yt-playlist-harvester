@@ -10,6 +10,9 @@
       document.documentElement.classList.toggle('dark', theme === 'dark');
     })();
   </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -17,21 +20,199 @@
       theme: {
         extend: {
           fontFamily: {
+            sans: ['Inter', 'Segoe UI', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
             mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+          },
+          colors: {
+            app: {
+              bg: '#121214',
+              card: '#1e1e22',
+              border: '#2a2a30',
+              input: '#16161a',
+              terminal: '#09090b',
+            },
           },
         },
       },
     };
   </script>
   <style>
+    :root {
+      --app-bg: #121214;
+      --app-card: #1e1e22;
+      --app-border: #2a2a30;
+      --app-input: #16161a;
+      --app-terminal: #09090b;
+      --accent-start: #10B981;
+      --accent-stop: #EF4444;
+      --radius-card: 12px;
+    }
+
+    body {
+      font-family: Inter, 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--app-bg);
+    }
+
+    .app-card {
+      background-color: var(--app-card);
+      border: 1px solid var(--app-border);
+      border-radius: var(--radius-card);
+    }
+
+    .input-wrap {
+      position: relative;
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      color: #52525b;
+      pointer-events: none;
+      transition: color 0.2s ease;
+    }
+
+    .input-wrap:focus-within .input-icon {
+      color: #10B981;
+    }
+
+    .input-field {
+      background-color: var(--app-input);
+      border: 1px solid var(--app-border);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+    }
+
+    .input-field:focus {
+      border-color: #10B981;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+      outline: none;
+    }
+
+    .input-field.with-icon {
+      padding-left: 2.5rem;
+    }
+
+    .btn-start {
+      background-color: var(--accent-start);
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.25);
+      transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+    }
+
+    .btn-start:hover:not(:disabled) {
+      background-color: #0d9f6e;
+      box-shadow: 0 0 28px rgba(16, 185, 129, 0.4);
+    }
+
+    .btn-start:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+
+    .btn-stop {
+      background-color: var(--accent-stop);
+      box-shadow: 0 0 16px rgba(239, 68, 68, 0.2);
+      transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+    }
+
+    .btn-stop:hover:not(:disabled) {
+      background-color: #dc2626;
+      box-shadow: 0 0 24px rgba(239, 68, 68, 0.35);
+    }
+
+    .btn-stop:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--app-border);
+      color: #a1a1aa;
+      transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .btn-outline:hover:not(:disabled) {
+      border-color: #3f3f46;
+      color: #e4e4e7;
+      background-color: rgba(255, 255, 255, 0.03);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04);
+    }
+
+    .terminal-window {
+      background-color: var(--app-terminal);
+      border: 1px solid var(--app-border);
+      border-radius: var(--radius-card);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .terminal-titlebar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+      background: linear-gradient(180deg, #141417 0%, #0f0f12 100%);
+      border-bottom: 1px solid var(--app-border);
+    }
+
+    .terminal-dots {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .terminal-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    #logTerminal {
+      background-color: var(--app-terminal);
+      color: #4ade80;
+      scrollbar-width: thin;
+      scrollbar-color: #27272a transparent;
+    }
+
+    #logTerminal::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    #logTerminal::-webkit-scrollbar-thumb {
+      background: #27272a;
+      border-radius: 3px;
+    }
+
+    #clearLogBtn {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid #27272a;
+      color: #71717a;
+      background: rgba(255, 255, 255, 0.02);
+      transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+    }
+
+    #clearLogBtn:hover {
+      color: #d4d4d8;
+      border-color: #3f3f46;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
     @keyframes progress-stripe {
       0% { background-position: 0 0; }
       100% { background-position: 40px 0; }
     }
+
     @keyframes progress-glow {
       0%, 100% { box-shadow: 0 0 8px rgba(16, 185, 129, 0.4); }
       50% { box-shadow: 0 0 16px rgba(16, 185, 129, 0.7); }
     }
+
     .progress-bar-fill {
       background-image:
         linear-gradient(to right, #059669, #14b8a6, #10b981),
@@ -45,208 +226,282 @@
       background-size: 100% 100%, 40px 40px;
       animation: progress-stripe 1s linear infinite, progress-glow 2s ease-in-out infinite;
     }
+
     .progress-bar-fill.idle {
       animation: none;
       background-image: linear-gradient(to right, #059669, #14b8a6);
     }
+
     @keyframes spin-smooth {
       to { transform: rotate(360deg); }
     }
+
     .btn-spinner {
       animation: spin-smooth 0.8s linear infinite;
     }
+
+    /* Light mode overrides (theme toggle compatibility) */
+    html:not(.dark) body {
+      background-color: #f4f4f5;
+      color: #18181b;
+    }
+
+    html:not(.dark) .app-card {
+      background-color: #ffffff;
+      border-color: #e4e4e7;
+    }
+
+    html:not(.dark) .input-field {
+      background-color: #ffffff;
+      border-color: #d4d4d8;
+      color: #18181b;
+    }
+
+    html:not(.dark) .terminal-window,
+    html:not(.dark) #logTerminal {
+      background-color: #18181b;
+    }
+
+    html:not(.dark) .btn-outline {
+      border-color: #d4d4d8;
+      color: #52525b;
+    }
   </style>
 </head>
-<body class="min-h-screen bg-slate-50 text-slate-800 antialiased transition-colors duration-300 dark:bg-zinc-950 dark:text-zinc-100">
-  <div class="mx-auto flex min-h-screen max-w-3xl flex-col px-4 py-8 sm:px-6 lg:px-8">
+<body class="min-h-screen bg-app-bg text-zinc-100 antialiased transition-colors duration-300 dark:bg-app-bg dark:text-zinc-100">
+  <div class="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-6 sm:px-6 lg:px-8">
+
     <!-- Header -->
-    <header class="mb-8">
-      <div class="flex items-start justify-between gap-4">
+    <header class="mb-6 shrink-0">
+      <div class="flex flex-wrap items-center justify-between gap-4">
         <div class="flex items-center gap-3">
-          <!-- Logo SVG: Play + Download -->
-          <svg class="h-11 w-11 shrink-0 drop-shadow-lg sm:h-12 sm:w-12" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <svg class="h-10 w-10 shrink-0 sm:h-11 sm:w-11" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <defs>
               <linearGradient id="logoGrad" x1="4" y1="4" x2="44" y2="44" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stop-color="#06b6d4"/>
-                <stop offset="50%" stop-color="#3b82f6"/>
-                <stop offset="100%" stop-color="#10b981"/>
+                <stop offset="0%" stop-color="#10B981"/>
+                <stop offset="50%" stop-color="#06b6d4"/>
+                <stop offset="100%" stop-color="#3b82f6"/>
               </linearGradient>
             </defs>
-            <rect x="2" y="2" width="44" height="44" rx="12" fill="url(#logoGrad)" opacity="0.15"/>
+            <rect x="2" y="2" width="44" height="44" rx="12" fill="url(#logoGrad)" opacity="0.12"/>
             <path d="M18 14v20l16-10-16-10z" fill="url(#logoGrad)"/>
             <path d="M30 30v6h6" stroke="url(#logoGrad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M30 36l6-6" stroke="url(#logoGrad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
           <div>
-            <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">ToolDownload</h1>
-            <p class="mt-0.5 text-sm text-slate-500 dark:text-zinc-400">Tải hàng loạt video từ YouTube Playlist qua yt-dlp</p>
+            <h1 class="text-xl font-bold tracking-tight text-white sm:text-2xl">ToolDownload</h1>
+            <p class="mt-0.5 text-xs text-zinc-500 sm:text-sm">Tải hàng loạt video từ YouTube Playlist qua yt-dlp</p>
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- Đồng bộ Cookie -->
+          <button
+            type="button"
+            id="syncCookieBtn"
+            class="btn-outline inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium sm:text-sm"
+          >
+            <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            <span>Đồng bộ Cookie</span>
+          </button>
+
           <!-- Theme Toggle -->
           <button
             type="button"
             id="themeToggle"
             aria-label="Đổi chế độ sáng/tối"
-            class="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+            class="btn-outline flex h-9 w-9 items-center justify-center rounded-lg"
           >
-            <svg id="iconSun" class="hidden h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <svg id="iconSun" class="hidden h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
             </svg>
-            <svg id="iconMoon" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <svg id="iconMoon" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
             </svg>
           </button>
 
           <!-- Server Status -->
-          <div id="serverStatus" class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
-            <span id="statusDot" class="h-2 w-2 rounded-full bg-slate-400"></span>
+          <div id="serverStatus" class="flex items-center gap-2 rounded-lg border border-app-border bg-app-card px-3 py-2 text-xs text-zinc-400">
+            <span id="statusDot" class="h-2 w-2 rounded-full bg-zinc-500"></span>
             <span id="statusText">Đang kiểm tra...</span>
           </div>
         </div>
       </div>
     </header>
 
-    <!-- Form Card -->
-    <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/50 transition-colors duration-300 dark:border-slate-700 dark:bg-slate-800 dark:shadow-black/20">
-      <form id="downloadForm" class="space-y-5">
-        <div>
-          <label for="playlistUrl" class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-zinc-300">
-            URL Playlist YouTube
-          </label>
-          <input
-            type="url"
-            id="playlistUrl"
-            required
-            placeholder="https://www.youtube.com/playlist?list=..."
-            class="input-field w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none transition-all duration-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder-zinc-600"
-          >
-        </div>
+    <!-- Main two-column layout -->
+    <main class="grid flex-1 grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-6">
 
-        <div>
-          <label for="downloadPath" class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-zinc-300">
-            Thư mục lưu file
-          </label>
-          <input
-            type="text"
-            id="downloadPath"
-            placeholder="./downloads (mặc định nếu để trống)"
-            class="input-field w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none transition-all duration-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:placeholder-zinc-600"
-          >
-          <p class="mt-1 text-xs text-slate-400 dark:text-zinc-500">Đường dẫn tương đối (vd: ./downloads) hoặc tuyệt đối (vd: /Users/name/Videos)</p>
-        </div>
-
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div>
-            <label for="fromIndex" class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-zinc-300">
-              Từ video thứ (X)
-            </label>
-            <input
-              type="number"
-              id="fromIndex"
-              min="1"
-              value="1"
-              required
-              class="input-field w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition-all duration-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-            >
-          </div>
-          <div>
-            <label for="toIndex" class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-zinc-300">
-              Đến video thứ (Y)
-            </label>
-            <input
-              type="number"
-              id="toIndex"
-              min="1"
-              value="5"
-              required
-              class="input-field w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition-all duration-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-            >
-          </div>
-          <div>
-            <label for="resolution" class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-zinc-300">
-              Độ phân giải
-            </label>
-            <select
-              id="resolution"
-              class="input-field w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition-all duration-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-            >
-              <option value="480" selected>480p</option>
-              <option value="720">720p</option>
-              <option value="1080">1080p</option>
-            </select>
+      <!-- Left: Cấu hình tải -->
+      <section class="app-card p-5 sm:p-6">
+        <div class="mb-5 flex items-center justify-between gap-3">
+          <h2 class="text-sm font-semibold uppercase tracking-wider text-zinc-400">Cấu hình tải</h2>
+          <div id="summaryBadge" class="hidden">
+            <span class="inline-flex items-center rounded-md border border-app-border bg-app-bg px-2.5 py-1 text-xs text-zinc-400">
+              Sẽ tải: <strong id="summaryCount" class="ml-1 text-emerald-400">0</strong> video
+            </span>
           </div>
         </div>
 
-        <button
-          type="submit"
-          id="startBtn"
-          class="flex w-full items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 transition-all duration-300 hover:scale-[1.02] hover:shadow-emerald-500/40 hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100 disabled:hover:brightness-100"
-        >
-          <svg id="btnIcon" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-          </svg>
-          <svg id="btnSpinner" class="btn-spinner hidden h-5 w-5" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-          </svg>
-          <span id="btnText">Bắt đầu tải hàng loạt</span>
-        </button>
-      </form>
-    </section>
+        <form id="downloadForm" class="space-y-4">
+          <!-- URL -->
+          <div>
+            <label for="playlistUrl" class="mb-1.5 block text-xs font-medium text-zinc-400">
+              URL Playlist YouTube
+            </label>
+            <div class="input-wrap">
+              <svg class="input-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+              </svg>
+              <input
+                type="url"
+                id="playlistUrl"
+                required
+                placeholder="https://www.youtube.com/playlist?list=..."
+                class="input-field with-icon w-full rounded-lg px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600"
+              >
+            </div>
+          </div>
 
-    <!-- Progress -->
-    <section id="progressSection" class="mt-6 hidden">
-      <div class="mb-2 flex items-center justify-between text-sm">
-        <span class="font-medium text-slate-700 dark:text-zinc-300">Tiến trình tổng thể</span>
-        <span id="progressPercent" class="tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">0%</span>
-      </div>
-      <div class="h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-zinc-800">
-        <div
-          id="progressBar"
-          class="progress-bar-fill idle h-full rounded-full transition-all duration-500 ease-out"
-          style="width: 0%"
-        ></div>
-      </div>
-      <p id="progressDetail" class="mt-1.5 text-xs text-slate-400 dark:text-zinc-500">Chưa bắt đầu</p>
-    </section>
+          <!-- Download path -->
+          <div>
+            <label for="downloadPath" class="mb-1.5 block text-xs font-medium text-zinc-400">
+              Thư mục lưu file
+            </label>
+            <div class="input-wrap">
+              <svg class="input-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+              </svg>
+              <input
+                type="text"
+                id="downloadPath"
+                placeholder="./downloads (mặc định nếu để trống)"
+                class="input-field with-icon w-full rounded-lg px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600"
+              >
+            </div>
+            <p class="mt-1.5 text-xs text-zinc-600">Đường dẫn tương đối (vd: ./downloads) hoặc tuyệt đối (vd: D:\Videos)</p>
+          </div>
 
-    <!-- Summary badge -->
-    <div id="summaryBadge" class="mt-4 hidden">
-      <span class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
-        Sẽ tải: <strong id="summaryCount" class="ml-1 text-emerald-600 dark:text-emerald-400">0</strong> video
-      </span>
-    </div>
+          <!-- Range + Resolution -->
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <label for="fromIndex" class="mb-1.5 block text-xs font-medium text-zinc-400">
+                Từ video thứ (X)
+              </label>
+              <input
+                type="number"
+                id="fromIndex"
+                min="1"
+                value="1"
+                required
+                class="input-field w-full rounded-lg px-3 py-2.5 text-sm text-zinc-100"
+              >
+            </div>
+            <div>
+              <label for="toIndex" class="mb-1.5 block text-xs font-medium text-zinc-400">
+                Đến video thứ (Y)
+              </label>
+              <input
+                type="number"
+                id="toIndex"
+                min="1"
+                value="5"
+                required
+                class="input-field w-full rounded-lg px-3 py-2.5 text-sm text-zinc-100"
+              >
+            </div>
+            <div>
+              <label for="resolution" class="mb-1.5 block text-xs font-medium text-zinc-400">
+                Độ phân giải
+              </label>
+              <select
+                id="resolution"
+                class="input-field w-full rounded-lg px-3 py-2.5 text-sm text-zinc-100"
+              >
+                <option value="480" selected>480p</option>
+                <option value="720">720p</option>
+                <option value="1080">1080p</option>
+              </select>
+            </div>
+          </div>
 
-    <!-- Terminal Log (macOS style) -->
-    <section class="mt-6 flex flex-1 flex-col">
-      <div class="mb-2 flex items-center justify-between">
-        <h2 class="text-sm font-medium text-slate-500 dark:text-zinc-400">Terminal Log</h2>
-        <button
-          type="button"
-          id="clearLogBtn"
-          class="text-xs text-slate-400 transition-colors duration-200 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300"
-        >
-          Xóa log
-        </button>
+          <!-- Start / Stop buttons side by side -->
+          <div class="flex gap-3 pt-1">
+            <button
+              type="submit"
+              id="startBtn"
+              class="btn-start flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <svg id="btnIcon" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              <svg id="btnSpinner" class="btn-spinner hidden h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              <span id="btnText">Bắt đầu tải hàng loạt</span>
+            </button>
+            <button
+              type="button"
+              id="stopBtn"
+              disabled
+              class="btn-stop flex shrink-0 items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <svg id="stopBtnIcon" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <rect x="6" y="6" width="12" height="12" rx="1" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span id="stopBtnText">Dừng tải</span>
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Right: Progress + Terminal -->
+      <div class="flex min-h-[520px] flex-col gap-5 lg:min-h-0">
+
+        <!-- Progress -->
+        <section id="progressSection" class="app-card hidden p-5 sm:p-6">
+          <div class="mb-3 flex items-center justify-between">
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-zinc-400">Tiến trình tổng thể</h2>
+            <span id="progressPercent" class="tabular-nums text-sm font-bold text-emerald-400">0%</span>
+          </div>
+          <div class="h-2.5 overflow-hidden rounded-full bg-zinc-800">
+            <div
+              id="progressBar"
+              class="progress-bar-fill idle h-full rounded-full transition-all duration-500 ease-out"
+              style="width: 0%"
+            ></div>
+          </div>
+          <p id="progressDetail" class="mt-2 text-xs text-zinc-500">Chưa bắt đầu</p>
+        </section>
+
+        <!-- Terminal Log -->
+        <section class="flex min-h-0 flex-1 flex-col">
+          <div class="terminal-window flex-1">
+            <div class="terminal-titlebar">
+              <div class="flex min-w-0 items-center gap-3">
+                <div class="terminal-dots shrink-0" aria-hidden="true">
+                  <span class="terminal-dot bg-[#ff5f57]"></span>
+                  <span class="terminal-dot bg-[#febc2e]"></span>
+                  <span class="terminal-dot bg-[#28c840]"></span>
+                </div>
+                <span class="truncate font-mono text-xs text-zinc-500">tooldownload — terminal</span>
+              </div>
+              <button type="button" id="clearLogBtn">Xóa log</button>
+            </div>
+            <div
+              id="logTerminal"
+              class="min-h-[320px] flex-1 overflow-y-auto p-4 font-mono text-xs leading-relaxed sm:min-h-[380px] lg:min-h-0"
+            >
+              <p class="text-zinc-600">// Chờ lệnh tải...</p>
+            </div>
+          </div>
+        </section>
+
       </div>
-      <div class="overflow-hidden rounded-2xl border border-slate-700/50 shadow-xl dark:border-zinc-800">
-        <!-- macOS title bar -->
-        <div class="flex items-center gap-2 border-b border-slate-700/50 bg-slate-800/90 px-4 py-2.5 dark:border-zinc-800 dark:bg-zinc-900/90">
-          <span class="h-3 w-3 rounded-full bg-[#ff5f57] shadow-sm"></span>
-          <span class="h-3 w-3 rounded-full bg-[#febc2e] shadow-sm"></span>
-          <span class="h-3 w-3 rounded-full bg-[#28c840] shadow-sm"></span>
-          <span class="ml-2 font-mono text-xs text-slate-400 dark:text-zinc-500">tooldownload — bash</span>
-        </div>
-        <div
-          id="logTerminal"
-          class="h-80 overflow-y-auto bg-[#0d1117] p-4 font-mono text-xs leading-relaxed sm:h-96"
-        >
-          <p class="text-zinc-600">// Chờ lệnh tải...</p>
-        </div>
-      </div>
-    </section>
+    </main>
   </div>
 
   <script src="script.js"></script>

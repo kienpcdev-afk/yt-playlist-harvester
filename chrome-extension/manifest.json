@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Tool Tải Playlist YouTube — Đồng bộ Cookie",
+  "version": "1.0.0",
+  "description": "Gửi cookie YouTube về Tool trên máy (lưu file cookies.txt, không cần cấu hình thủ công).",
+  "permissions": ["cookies", "activeTab"],
+  "host_permissions": [
+    "https://*.youtube.com/*",
+    "http://localhost:3000/*"
+  ],
+  "action": {
+    "default_title": "Cập nhật cookie YouTube",
+    "default_popup": "popup.html"
+  }
+}

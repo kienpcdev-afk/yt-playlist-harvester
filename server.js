@@ -14,6 +14,8 @@ const {
   describeYtDlpCookies,
   describeYtDlpJsRuntime,
   hasYtDlpCookies,
+  initYtDlpCookies,
+  getCookiesInitWarning,
 } = require('./ytdlp-cookies');
 const { createYtDlpProgressLogger } = require('./ytdlp-log-filter');
 const { getDownloadConcurrency, runWithConcurrency, logSkippedSummary } = require('./download-queue');
@@ -24,6 +26,18 @@ const {
   releaseDownloadSlot,
   cleanupPartialDownload,
 } = require('./ytdlp-resilience');
+const { fetchOriginalVideoTitles, describeTitleFetchMode, cleanVideoTitle } = require('./ytdlp-titles');
+const { registerCookieUpdateRoute } = require('./cookie-update');
+const {
+  resetStopState,
+  requestStop,
+  notifyGracefulStop,
+  markDownloadStart,
+  markDownloadEnd,
+  shouldStopQueue,
+  abortIfStopping,
+  getActiveDownloads,
+} = require('./download-stop-state');
 
 function findYtDlpInWinGetPackages() {
   const packagesDir = path.join(
@@ -80,13 +94,6 @@ function sendSSE(res, event, data) {
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
-function cleanTitle(title) {
-  return (title || 'video')
-    .replace(/[\\/:*?"<>|]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
 function formatSTT(playlistPosition) {
   return String(playlistPosition).padStart(2, '0');
 }
@@ -115,8 +122,8 @@ function cleanupLeftoverFiles(dirPath) {
   return removed;
 }
 
-function buildFilename(stt, title) {
-  return `${stt} ${cleanTitle(title)}`;
+function buildFilename(stt, title, videoId) {
+  return `${stt} ${cleanVideoTitle(title, videoId)}`;
 }
 
 function buildFormatString(resolution) {
@@ -137,6 +144,8 @@ function runYtDlpFlatPlaylist(playlistUrl, playlistItems) {
 
   return execFileAsync(YTDLP_CMD, args, {
     maxBuffer: 50 * 1024 * 1024,
+    encoding: 'utf8',
+    env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
   });
 }
 
@@ -276,6 +285,17 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', message: 'Server is running' });
 });
 
+registerCookieUpdateRoute(app);
+
+app.post('/api/download/stop', (_req, res) => {
+  requestStop();
+  res.json({
+    ok: true,
+    message: 'Đang chờ các video đang tải hoàn thành...',
+    activeDownloads: getActiveDownloads(),
+  });
+});
+
 app.post('/api/playlist/download', async (req, res) => {
   const { playlistUrl, fromIndex, toIndex, resolution, downloadPath } = req.body;
 
@@ -304,6 +324,8 @@ app.post('/api/playlist/download', async (req, res) => {
     sendSSE(res, type, { message, ...extra });
   };
 
+  resetStopState();
+
   try {
     const saveDir = resolveDownloadPath(downloadPath);
     ensureDownloadDir(saveDir);
@@ -317,6 +339,7 @@ app.post('/api/playlist/download', async (req, res) => {
     }
 
     const { entries, selected, totalVisible, playlistCount } = await fetchPlaylistEntries(playlistUrl, X, Y);
+    if (abortIfStopping(log, res)) return;
     const countHint = playlistCount > totalVisible
       ? `${totalVisible} (YouTube báo ~${playlistCount})`
       : `${totalVisible}`;
@@ -336,13 +359,17 @@ app.post('/api/playlist/download', async (req, res) => {
       throw new Error(msg);
     }
 
+    log('info', `Đang lấy ${describeTitleFetchMode()} cho ${selected.length} video...`);
+    const selectedWithTitles = await fetchOriginalVideoTitles(YTDLP_CMD, selected);
+    if (abortIfStopping(log, res)) return;
+
     const startIdx = X - 1;
 
-    const videos = selected.map((entry, i) => {
+    const videos = selectedWithTitles.map((entry, i) => {
       const playlistPosition = startIdx + i + 1;
       return {
         id: entry.id,
-        title: cleanTitle(entry.title),
+        title: cleanVideoTitle(entry.title, entry.id),
         playlistPosition,
         videoUrl: `https://www.youtube.com/watch?v=${entry.id}`,
       };
@@ -363,10 +390,10 @@ app.post('/api/playlist/download', async (req, res) => {
 
     let completedCount = 0;
 
-    const { results, failures } = await runWithConcurrency(videos, async (video, i) => {
+    const { results, failures, stopped } = await runWithConcurrency(videos, async (video, i) => {
       const { playlistPosition, title, videoUrl } = video;
       const stt = formatSTT(playlistPosition);
-      const baseName = buildFilename(stt, title);
+      const baseName = buildFilename(stt, title, video.id);
       const videoPath = path.join(saveDir, `${baseName}.mp4`);
       const thumbPath = path.join(saveDir, `${buildThumbFilename(stt)}.jpg`);
 
@@ -412,9 +439,20 @@ app.post('/api/playlist/download', async (req, res) => {
         videoPath,
         thumbPath,
       };
-    }, concurrency, { continueOnError: true });
+    }, concurrency, {
+      continueOnError: true,
+      shouldStop: shouldStopQueue,
+      onItemStart: markDownloadStart,
+      onItemEnd: markDownloadEnd,
+    });
 
     const skipped = logSkippedSummary(log, failures, formatSTT);
+
+    if (stopped) {
+      notifyGracefulStop(log, { skippedCount: skipped.length });
+      res.end();
+      return;
+    }
 
     const removed = cleanupLeftoverFiles(saveDir);
     if (removed.length > 0) {
@@ -432,24 +470,37 @@ app.post('/api/playlist/download', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server đang chạy tại http://localhost:${PORT}`);
-  console.log(`Thư mục tải: ${DOWNLOADS_DIR}`);
-  console.log(`yt-dlp: ${YTDLP_CMD}`);
-  const cookieDesc = describeYtDlpCookies();
-  if (cookieDesc) {
-    console.log(`Cookies YouTube: ${cookieDesc}`);
-  } else {
-    console.log('Cookies YouTube: chưa cấu hình (playlist >100 video cần cookies — xem .env.example)');
-  }
-  console.log(`Tải song song: ${getDownloadConcurrency()} video cùng lúc`);
-  const globalLimit = getGlobalDownloadConcurrency();
-  if (globalLimit !== null) {
-    console.log(`Giới hạn tải toàn cục: ${globalLimit} video cùng lúc (mọi tab)`);
-  }
-  console.log(`yt-dlp retry: ${process.env.YTDLP_RETRIES || 10} lần/video, lỗi thì bỏ qua và tải tiếp`);
-  const jsRuntime = describeYtDlpJsRuntime();
-  if (jsRuntime) {
-    console.log(`YouTube JS runtime: ${jsRuntime}`);
-  }
+async function startServer() {
+  const cookieInit = await initYtDlpCookies(YTDLP_CMD);
+
+  app.listen(PORT, () => {
+    console.log(`Server đang chạy tại http://localhost:${PORT}`);
+    console.log(`Thư mục tải: ${DOWNLOADS_DIR}`);
+    console.log(`yt-dlp: ${YTDLP_CMD}`);
+    const cookieDesc = cookieInit.desc || describeYtDlpCookies();
+    if (cookieDesc) {
+      console.log(`Cookies YouTube: ${cookieDesc}`);
+    } else {
+      console.log('Cookies YouTube: chưa cấu hình (playlist >100 video cần cookies — xem .env.example)');
+    }
+    const cookieWarning = cookieInit.warning || getCookiesInitWarning();
+    if (cookieWarning) {
+      console.warn(`Cookies cảnh báo: ${cookieWarning}`);
+    }
+    console.log(`Tải song song: ${getDownloadConcurrency()} video cùng lúc`);
+    const globalLimit = getGlobalDownloadConcurrency();
+    if (globalLimit !== null) {
+      console.log(`Giới hạn tải toàn cục: ${globalLimit} video cùng lúc (mọi tab)`);
+    }
+    console.log(`yt-dlp retry: ${process.env.YTDLP_RETRIES || 10} lần/video, lỗi thì bỏ qua và tải tiếp`);
+    const jsRuntime = describeYtDlpJsRuntime();
+    if (jsRuntime) {
+      console.log(`YouTube JS runtime: ${jsRuntime}`);
+    }
+  });
+}
+
+startServer().catch((err) => {
+  console.error(`Không khởi động được server: ${err.message}`);
+  process.exit(1);
 });

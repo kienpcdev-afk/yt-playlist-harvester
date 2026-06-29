@@ -8,6 +8,8 @@ const toIndexInput = document.getElementById('toIndex');
 const resolutionSelect = document.getElementById('resolution');
 const downloadPathInput = document.getElementById('downloadPath');
 const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+const stopBtnText = document.getElementById('stopBtnText');
 const btnIcon = document.getElementById('btnIcon');
 const btnSpinner = document.getElementById('btnSpinner');
 const btnText = document.getElementById('btnText');
@@ -18,6 +20,7 @@ const statusDot = document.getElementById('statusDot');
 const statusText = document.getElementById('statusText');
 const logTerminal = document.getElementById('logTerminal');
 const clearLogBtn = document.getElementById('clearLogBtn');
+const syncCookieBtn = document.getElementById('syncCookieBtn');
 const progressSection = document.getElementById('progressSection');
 const progressBar = document.getElementById('progressBar');
 const progressPercent = document.getElementById('progressPercent');
@@ -28,6 +31,7 @@ const summaryCount = document.getElementById('summaryCount');
 let totalVideos = 0;
 let completedVideos = 0;
 let isDownloading = false;
+let isStopPending = false;
 let abortController = null;
 
 function isDark() {
@@ -68,9 +72,16 @@ function clearLog() {
   logTerminal.innerHTML = '';
 }
 
+function resetStopButton() {
+  isStopPending = false;
+  stopBtn.disabled = true;
+  stopBtnText.textContent = 'Dừng tải';
+}
+
 function setDownloading(loading) {
   isDownloading = loading;
   startBtn.disabled = loading;
+  stopBtn.disabled = loading ? isStopPending : true;
   playlistUrlInput.disabled = loading;
   fromIndexInput.disabled = loading;
   toIndexInput.disabled = loading;
@@ -84,12 +95,22 @@ function setDownloading(loading) {
   if (loading) {
     startBtn.classList.add('animate-pulse');
     progressBar.classList.remove('idle');
+    if (!isStopPending) {
+      stopBtn.disabled = false;
+    }
   } else {
     startBtn.classList.remove('animate-pulse');
+    resetStopButton();
     if (completedVideos >= totalVideos && totalVideos > 0) {
       progressBar.classList.add('idle');
     }
   }
+}
+
+function setStopPending() {
+  isStopPending = true;
+  stopBtn.disabled = true;
+  stopBtnText.textContent = 'Đang đợi hoàn thành video cuối...';
 }
 
 function updateProgress() {
@@ -220,6 +241,15 @@ function handleSSEEvent(event, data) {
       appendLog('✓ Hoàn thành toàn bộ quá trình tải.', 'text-white');
       break;
 
+    case 'stopped_graceful': {
+      appendLog(msg, 'text-amber-400 font-bold');
+      if ((data.skippedCount ?? 0) > 0) {
+        appendLog('→ Xem danh sách link tải tay ở các dòng "Đã bỏ qua" phía trên.', 'text-amber-300');
+      }
+      appendLog('✓ Đã dừng an toàn — các video đang tải đã hoàn thành.', 'text-white');
+      break;
+    }
+
     case 'error':
       appendLog(`✗ LỖI: ${msg}`, 'text-red-500 font-bold');
       break;
@@ -298,6 +328,28 @@ themeToggle.addEventListener('click', () => {
   setTheme(isDark() ? 'light' : 'dark');
 });
 
+stopBtn.addEventListener('click', async () => {
+  if (!isDownloading || isStopPending) return;
+
+  setStopPending();
+  appendLog('Đang yêu cầu dừng tải — chờ video đang tải hoàn thành...', 'text-amber-400');
+
+  try {
+    const res = await fetch(`${API_BASE}/api/download/stop`, { method: 'POST' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+  } catch (err) {
+    appendLog(`✗ Không gửi được lệnh dừng: ${err.message}`, 'text-red-500 font-bold');
+    isStopPending = false;
+    if (isDownloading) {
+      stopBtn.disabled = false;
+      stopBtnText.textContent = 'Dừng tải';
+    }
+  }
+});
+
 downloadForm.addEventListener('submit', async (e) => {
   e.preventDefault();
 
@@ -348,6 +400,14 @@ downloadForm.addEventListener('submit', async (e) => {
 clearLogBtn.addEventListener('click', () => {
   clearLog();
   appendLog('// Log đã được xóa.', 'text-zinc-600');
+});
+
+syncCookieBtn.addEventListener('click', () => {
+  appendLog('→ Đồng bộ Cookie: cài Extension Chrome trong thư mục chrome-extension/', 'text-cyan-400');
+  appendLog('  1. Mở youtube.com và đăng nhập Google', 'text-zinc-500');
+  appendLog('  2. Nhấn icon Extension → "Cập nhật Cookie về Tool"', 'text-zinc-500');
+  appendLog('  3. Cookie sẽ gửi về POST /update-cookie trên server này', 'text-zinc-500');
+  appendLog('  Hoặc chạy: npm run setup:browser-cookies', 'text-zinc-500');
 });
 
 initTheme();

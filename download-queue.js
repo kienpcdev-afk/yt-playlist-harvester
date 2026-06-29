@@ -5,8 +5,13 @@ function getDownloadConcurrency() {
 }
 
 async function runWithConcurrency(items, workerFn, concurrency, options = {}) {
-  const { continueOnError = false } = options;
-  if (items.length === 0) return { results: [], failures: [] };
+  const {
+    continueOnError = false,
+    shouldStop,
+    onItemStart,
+    onItemEnd,
+  } = options;
+  if (items.length === 0) return { results: [], failures: [], stopped: false };
 
   const results = new Array(items.length);
   const failures = [];
@@ -15,8 +20,10 @@ async function runWithConcurrency(items, workerFn, concurrency, options = {}) {
 
   async function runner() {
     while (!failed) {
+      if (shouldStop && shouldStop()) break;
       const i = nextIndex++;
       if (i >= items.length) break;
+      onItemStart?.();
       try {
         results[i] = await workerFn(items[i], i);
       } catch (err) {
@@ -26,6 +33,8 @@ async function runWithConcurrency(items, workerFn, concurrency, options = {}) {
           failed = err;
           break;
         }
+      } finally {
+        onItemEnd?.();
       }
     }
   }
@@ -35,7 +44,11 @@ async function runWithConcurrency(items, workerFn, concurrency, options = {}) {
   );
 
   if (failed) throw failed;
-  return { results: results.filter(Boolean), failures };
+  return {
+    results: results.filter(Boolean),
+    failures,
+    stopped: Boolean(shouldStop && shouldStop()),
+  };
 }
 
 function buildSkippedSummary(failures, formatStt) {
