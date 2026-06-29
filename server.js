@@ -1,8 +1,10 @@
-require('dotenv').config();
+const path = require('path');
+const { getDataDir } = require('./app-paths');
+
+require('dotenv').config({ path: path.join(getDataDir(), '.env') });
 
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const fs = require('fs');
 const { execFile, spawn } = require('child_process');
 const { promisify } = require('util');
@@ -67,10 +69,11 @@ function resolveYtDlpCommand() {
 }
 
 const YTDLP_CMD = resolveYtDlpCommand();
+const DATA_DIR = getDataDir();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DOWNLOADS_DIR = path.join(__dirname, 'downloads');
+const DOWNLOADS_DIR = path.join(DATA_DIR, 'downloads');
 
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
@@ -80,8 +83,8 @@ fs.mkdirSync(DOWNLOADS_DIR, { recursive: true });
 
 function resolveDownloadPath(downloadPath) {
   const raw = (downloadPath || '').trim();
-  const target = raw || path.join(__dirname, 'downloads');
-  return path.isAbsolute(target) ? path.resolve(target) : path.resolve(__dirname, target);
+  const target = raw || path.join(DATA_DIR, 'downloads');
+  return path.isAbsolute(target) ? path.resolve(target) : path.resolve(DATA_DIR, target);
 }
 
 function ensureDownloadDir(dirPath) {

@@ -55,7 +55,7 @@ Mở trình duyệt: **http://localhost:3000**
 
 Xem hướng dẫn chi tiết: **[INSTALL-WINDOWS.md](./INSTALL-WINDOWS.md)**
 
-Tóm tắt:
+**Chạy bằng Node.js (phát triển):**
 
 ```powershell
 # Cài Node.js + ffmpeg, tải yt-dlp.exe vào thư mục project
@@ -64,6 +64,17 @@ npm install
 copy .env.example .env
 npm run start:win      # chạy windownserver.js
 ```
+
+**Build & chạy file `.exe` (phân phối — không cần Node.js khi chạy):**
+
+```powershell
+cd D:\Tool\yt-playlist-harvester
+npm install
+npm run build:exe      # tạo yt-playlist-harvester.exe
+.\yt-playlist-harvester.exe
+```
+
+Chi tiết: [INSTALL-WINDOWS.md — Cách 2](./INSTALL-WINDOWS.md#cách-2--build--chạy-file-exe-phân-phối)
 
 > **Lưu ý:** `npm start` chạy `server.js` (Mac/Linux). Trên Windows dùng **`npm run start:win`**.
 
@@ -81,6 +92,7 @@ ToolDownload/
 ├── download-queue.js      # Tải song song
 ├── ytdlp-log-filter.js    # Lọc log yt-dlp
 ├── yt-dlp.exe             # Windows — tự tải, không commit
+├── yt-playlist-harvester.exe   # Windows — sau npm run build:exe
 ├── .env.example           # Mẫu cấu hình
 ├── package.json
 ├── public/

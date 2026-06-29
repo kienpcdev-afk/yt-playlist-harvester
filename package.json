@@ -1,15 +1,26 @@
 {
   "name": "tooldownload",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Tool tải playlist YouTube",
+  "main": "windownserver.js",
+  "bin": "windownserver.js",
   "scripts": {
     "start": "node server.js",
     "start:win": "node windownserver.js",
     "dev": "node server.js",
     "setup:cookies": "node scripts/setup-cookies.js",
     "setup:browser-cookies": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-browser-cookies.ps1",
+    "build:exe": "pkg . --targets node18-win-x64 --output yt-playlist-harvester.exe",
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "pkg": {
+    "assets": [
+      "public/**/*"
+    ],
+    "scripts": [
+      "*.js",
+      "!scripts/**"
+    ]
   },
   "keywords": [],
   "author": "",
@@ -19,5 +30,8 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
   }
 }

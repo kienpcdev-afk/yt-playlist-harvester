@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs');
+const { getDataDir } = require('./app-paths');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 
@@ -21,7 +22,7 @@ function resolveCookieFile(rawPath) {
 
   const resolved = path.isAbsolute(trimmed)
     ? path.resolve(trimmed)
-    : path.resolve(__dirname, trimmed);
+    : path.resolve(getDataDir(), trimmed);
 
   return fs.existsSync(resolved) ? resolved : null;
 }
@@ -215,8 +216,8 @@ async function initYtDlpCookies(ytdlpCmd) {
 function getDefaultCookieFilePath() {
   const envPath = process.env.YTDLP_COOKIES;
   const trimmed = (envPath || 'cookies.txt').trim();
-  if (!trimmed) return path.join(__dirname, 'cookies.txt');
-  return path.isAbsolute(trimmed) ? path.resolve(trimmed) : path.join(__dirname, trimmed);
+  if (!trimmed) return path.join(getDataDir(), 'cookies.txt');
+  return path.isAbsolute(trimmed) ? path.resolve(trimmed) : path.join(getDataDir(), trimmed);
 }
 
 function reloadFileCookies() {

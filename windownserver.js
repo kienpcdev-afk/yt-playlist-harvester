@@ -1,10 +1,12 @@
-require('dotenv').config();
+const path = require('path');
+const { getDataDir } = require('./app-paths');
+
+require('dotenv').config({ path: path.join(getDataDir(), '.env') });
 
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const fs = require('fs');
-const { execFile, spawn } = require('child_process');
+const { exec, execFile, spawn } = require('child_process');
 const { promisify } = require('util');
 
 const execFileAsync = promisify(execFile);
@@ -39,10 +41,40 @@ const {
   getActiveDownloads,
 } = require('./download-stop-state');
 
+const DATA_DIR = getDataDir();
+
+function resolveYtDlpBin() {
+  const fromEnv = (process.env.YTDLP_PATH || '').trim();
+  if (fromEnv && fs.existsSync(fromEnv)) return fromEnv;
+
+  const cwdExe = path.join(DATA_DIR, 'yt-dlp.exe');
+  if (fs.existsSync(cwdExe)) return cwdExe;
+
+  const devExe = path.join(__dirname, 'yt-dlp.exe');
+  if (fs.existsSync(devExe)) return devExe;
+
+  return cwdExe;
+}
+
+function openDefaultBrowser(url) {
+  if (process.env.OPEN_BROWSER === '0') return;
+
+  const shouldOpen = process.pkg || process.env.OPEN_BROWSER === '1';
+  if (!shouldOpen) return;
+
+  if (process.platform === 'win32') {
+    exec(`start "" "${url}"`, { shell: true });
+  } else if (process.platform === 'darwin') {
+    exec(`open "${url}"`);
+  } else {
+    exec(`xdg-open "${url}"`);
+  }
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DOWNLOADS_DIR = path.join(__dirname, 'downloads');
-const YTDLP_BIN = path.join(__dirname, 'yt-dlp.exe');
+const DOWNLOADS_DIR = path.join(DATA_DIR, 'downloads');
+const YTDLP_BIN = resolveYtDlpBin();
 
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
@@ -52,8 +84,8 @@ fs.mkdirSync(DOWNLOADS_DIR, { recursive: true });
 
 function resolveDownloadPath(downloadPath) {
   const raw = (downloadPath || '').trim();
-  const target = raw || path.join(__dirname, 'downloads');
-  return path.isAbsolute(target) ? path.resolve(target) : path.resolve(__dirname, target);
+  const target = raw || path.join(DATA_DIR, 'downloads');
+  return path.isAbsolute(target) ? path.resolve(target) : path.resolve(DATA_DIR, target);
 }
 
 function ensureDownloadDir(dirPath) {
@@ -429,8 +461,12 @@ async function startServer() {
   const cookieInit = await initYtDlpCookies(YTDLP_BIN);
 
   app.listen(PORT, () => {
-    console.log(`Server đang chạy tại http://localhost:${PORT}`);
+    const appUrl = `http://localhost:${PORT}`;
+    console.log(`Server đang chạy tại ${appUrl}`);
+    console.log(`Thư mục dữ liệu: ${DATA_DIR}`);
     console.log(`Thư mục tải: ${DOWNLOADS_DIR}`);
+    console.log(`yt-dlp: ${YTDLP_BIN}`);
+    openDefaultBrowser(appUrl);
     const cookieDesc = cookieInit.desc || describeYtDlpCookies();
     if (cookieDesc) {
       console.log(`Cookies YouTube: ${cookieDesc}`);

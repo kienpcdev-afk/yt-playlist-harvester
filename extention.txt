@@ -1,0 +1,73 @@
+Các bước test
+Bước 1 — Chạy Tool trên máy
+Mở PowerShell hoặc Terminal:
+
+cd d:\ToolDownload\yt-playlist-harvester
+npm run start:win
+Đợi thấy dòng:
+
+Server đang chạy tại http://localhost:3000
+API đồng bộ Cookie: POST http://localhost:3000/update-cookie ...
+Giữ cửa sổ này mở, không tắt.
+
+Bước 2 — Cài Extension vào Chrome
+Mở Chrome, gõ: chrome://extensions
+
+Góc trên bên phải, bật Chế độ dành cho nhà phát triển
+
+Bấm Tải tiện ích đã giải nén (nút góc trên trái)
+
+Chọn thư mục:
+
+d:\ToolDownload\yt-playlist-harvester\chrome-extension
+
+Extension "Tool Tải Playlist YouTube — Đồng bộ Cookie" xuất hiện trong danh sách
+
+(Tùy chọn) Bấm biểu tượng ghim (📌) trên thanh công cụ Chrome để ghim icon Extension.
+
+Bước 3 — Đăng nhập YouTube
+Mở tab mới: https://www.youtube.com
+Đăng nhập tài khoản Google (góc phải có avatar, không phải chế độ khách)
+Giữ tab YouTube đang được chọn (tab đang active)
+Bước 4 — Gửi Cookie về Tool
+Nhấn icon Extension trên thanh công cụ Chrome
+Popup hiện: "Đồng bộ cookie YouTube"
+Bấm "Cập nhật Cookie về Tool"
+Kết quả mong đợi:
+Thông báo	Ý nghĩa
+Cập nhật thành công! (N Cookie)
+OK — đã lưu cookies.txt
+Không kết nối được Tool...
+Server chưa chạy — quay lại Bước 1
+Hãy mở tab YouTube (đã đăng nhập)...
+Chưa ở trang youtube.com
+Không tìm thấy Cookie YouTube...
+Chưa đăng nhập Google trên YouTube
+Bước 5 — Kiểm tra file đã tạo
+Mở PowerShell mới (không cần tắt server):
+
+Test-Path d:\ToolDownload\yt-playlist-harvester\cookies.txt
+Get-Content d:\ToolDownload\yt-playlist-harvester\cookies.txt -Head 6
+File hợp lệ có dòng đầu:
+
+# Netscape HTTP Cookie File
+và các dòng cookie bên dưới (tên như LOGIN_INFO, SID, …).
+
+Bước 6 — Test API không cần Extension (tùy chọn)
+$body = @"
+# Netscape HTTP Cookie File
+.youtube.com`tTRUE`t/`tTRUE`t1893456000`tTEST_COOKIE`ttestvalue
+"@
+Invoke-RestMethod -Uri http://localhost:3000/update-cookie -Method POST -ContentType "text/plain" -Body $body
+Kết quả mong đợi: "message": "Cập nhật thành công!"
+
+Bước 7 — Test tải playlist (tùy chọn)
+Mở trình duyệt → http://localhost:3000
+Dán URL playlist YouTube
+Chọn khoảng video nhỏ (ví dụ #101–#105) nếu playlist dài
+Bấm Bắt đầu tải hàng loạt
+Xem log — không còn lỗi kiểu "chỉ thấy 100 video" nếu cookie hợp lệ
+Nếu sửa code Extension — tải lại
+Vào chrome://extensions
+Tìm Tool Tải Playlist YouTube — Đồng bộ Cookie
+Bấm Tải lại (biểu tượng mũi tên tròn trên thẻ Extension)
