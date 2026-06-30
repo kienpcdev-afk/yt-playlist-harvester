@@ -183,11 +183,6 @@ function handleSSEEvent(event, data) {
       summaryCount.textContent = totalVideos;
       updateProgress();
       appendLog(msg, 'text-emerald-400');
-      if (data.videos?.length) {
-        data.videos.forEach((v) => {
-          appendLog(`  #${v.position} [${v.id}] ${v.title}`, 'text-zinc-500');
-        });
-      }
       break;
 
     case 'start':

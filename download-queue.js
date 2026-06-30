@@ -56,7 +56,7 @@ function buildSkippedSummary(failures, formatStt) {
     stt: formatStt(failure.item.playlistPosition),
     playlistPosition: failure.item.playlistPosition,
     videoId: failure.item.id,
-    title: failure.item.title,
+    title: failure.item.title || failure.item.playlistTitle || failure.item.id,
     videoUrl: failure.item.videoUrl,
   }));
 }

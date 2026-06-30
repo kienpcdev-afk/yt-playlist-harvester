@@ -1,12 +1,13 @@
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 
-const { getYtDlpCookieArgs, getYtDlpJsRuntimeArgs } = require('./ytdlp-cookies');
+const { getYtDlpCookieArgs, getYtDlpJsRuntimeArgs, hasYtDlpCookies } = require('./ytdlp-cookies');
 
 const execFileAsync = promisify(execFile);
 
-const TITLE_CHUNK_SIZE = 50;
-const TITLE_FETCH_TIMEOUT_MS = 120000;
+const TITLE_FETCH_TIMEOUT_MS = 60000;
+const TITLE_FETCH_RETRIES = 2;
+const TITLE_FETCH_RETRY_DELAY_MS = 1500;
 
 const EXEC_OPTIONS = {
   maxBuffer: 10 * 1024 * 1024,
@@ -15,15 +16,31 @@ const EXEC_OPTIONS = {
   env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
 };
 
+const titleCache = new Map();
+
 function getTitleLang() {
   return (process.env.YTDLP_TITLE_LANG || '').trim();
 }
 
-function isValidTitle(title) {
+function shouldTrustPlaylistFallback(titleLang) {
+  if (titleLang) return false;
+  return !hasYtDlpCookies();
+}
+
+function resetTitleCache() {
+  titleCache.clear();
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isValidTitle(title, videoId) {
   if (!title || typeof title !== 'string') return false;
 
   const trimmed = title.trim();
   if (!trimmed) return false;
+  if (videoId && trimmed === videoId) return false;
 
   const replacementCount = (trimmed.match(/\uFFFD/g) || []).length;
   if (replacementCount > 0 && replacementCount >= trimmed.length / 2) {
@@ -34,8 +51,9 @@ function isValidTitle(title) {
 }
 
 function pickBestTitle(fetched, fallback, videoId) {
-  if (isValidTitle(fetched)) return fetched;
-  if (isValidTitle(fallback)) return fallback;
+  if (isValidTitle(fetched, videoId)) return fetched;
+  // Playlist title tốt hơn video ID — kể cả khi có cookies (có thể đã dịch nhưng vẫn đọc được).
+  if (isValidTitle(fallback, videoId)) return fallback;
   return videoId || 'video';
 }
 
@@ -45,38 +63,68 @@ function cleanVideoTitle(title, videoId) {
     .replace(/\s+/g, ' ')
     .trim();
 
-  if (isValidTitle(cleaned)) return cleaned;
+  if (isValidTitle(cleaned, videoId)) return cleaned;
   return videoId || 'video';
 }
 
-function buildTitleFetchArgs(entries, titleLang) {
-  const urls = entries.map((entry) => `https://www.youtube.com/watch?v=${entry.id}`);
+function buildTitleFetchStrategies(entry, titleLang) {
+  const url = `https://www.youtube.com/watch?v=${entry.id}`;
+  const base = ['--no-download', '--ignore-errors', '--no-warnings', '-j', url];
 
   if (titleLang) {
-    return [
+    return [[
       ...getYtDlpCookieArgs(),
       ...getYtDlpJsRuntimeArgs(),
       '--extractor-args', `youtube:player_client=web,lang=${titleLang}`,
-      '--no-download',
-      '--ignore-errors',
-      '-j',
-      ...urls,
-    ];
+      ...base,
+    ]];
   }
 
-  // Không dùng cookies: tránh YouTube trả tiêu đề dịch theo ngôn ngữ tài khoản.
-  return [
-    ...getYtDlpJsRuntimeArgs(),
-    '--extractor-args', 'youtube:player_client=android',
-    '--no-download',
-    '--ignore-errors',
-    '-j',
-    ...urls,
+  const strategies = [
+  // Ưu tiên tiêu đề gốc — không cookies
+    [
+      ...getYtDlpJsRuntimeArgs(),
+      '--extractor-args', 'youtube:player_client=android',
+      ...base,
+    ],
+    [
+      ...getYtDlpJsRuntimeArgs(),
+      '--extractor-args', 'youtube:player_client=web',
+      ...base,
+    ],
+    [
+      ...getYtDlpJsRuntimeArgs(),
+      '--extractor-args', 'youtube:player_client=tv',
+      ...base,
+    ],
   ];
+
+  if (hasYtDlpCookies()) {
+    strategies.push([
+      ...getYtDlpCookieArgs(),
+      ...getYtDlpJsRuntimeArgs(),
+      '--extractor-args', 'youtube:player_client=web',
+      ...base,
+    ]);
+  }
+
+  return strategies;
 }
 
-function parseTitleOutput(stdout) {
-  const titleMap = new Map();
+async function runYtDlpForTitle(ytdlpCmd, args) {
+  try {
+    const { stdout } = await execFileAsync(ytdlpCmd, args, EXEC_OPTIONS);
+    return typeof stdout === 'string' ? stdout : stdout.toString('utf8');
+  } catch (err) {
+    // yt-dlp thường exit 1 dù đã in metadata ra stdout
+    if (err.stdout) {
+      return typeof err.stdout === 'string' ? err.stdout : err.stdout.toString('utf8');
+    }
+    throw err;
+  }
+}
+
+function parseTitleFromJson(stdout, videoId) {
   const text = typeof stdout === 'string' ? stdout : stdout.toString('utf8');
 
   for (const line of text.split('\n')) {
@@ -85,88 +133,81 @@ function parseTitleOutput(stdout) {
 
     try {
       const data = JSON.parse(trimmed);
-      if (data.id && isValidTitle(data.title)) {
-        titleMap.set(data.id, data.title);
+      if (data.id === videoId && isValidTitle(data.title, videoId)) {
+        return data.title;
       }
     } catch {
       // Bỏ qua dòng không phải JSON hợp lệ
     }
   }
 
-  return titleMap;
+  return null;
 }
 
-async function fetchTitleChunk(ytdlpCmd, entries, titleLang) {
-  const { stdout } = await execFileAsync(
-    ytdlpCmd,
-    buildTitleFetchArgs(entries, titleLang),
-    EXEC_OPTIONS,
-  );
+async function fetchSingleTitle(ytdlpCmd, entry, titleLang) {
+  const strategies = buildTitleFetchStrategies(entry, titleLang);
 
-  return parseTitleOutput(stdout);
+  for (let attempt = 1; attempt <= TITLE_FETCH_RETRIES; attempt++) {
+    for (const args of strategies) {
+      try {
+        const stdout = await runYtDlpForTitle(ytdlpCmd, args);
+        const title = parseTitleFromJson(stdout, entry.id);
+        if (isValidTitle(title, entry.id)) return title;
+      } catch {
+        // Thử strategy tiếp theo
+      }
+    }
+
+    if (attempt < TITLE_FETCH_RETRIES) {
+      await sleep(TITLE_FETCH_RETRY_DELAY_MS);
+    }
+  }
+
+  return null;
 }
 
-async function fetchOriginalVideoTitles(ytdlpCmd, entries) {
-  if (!entries.length) return [];
-
+function createTitleResolver(ytdlpCmd) {
   const titleLang = getTitleLang();
-  const titleMap = new Map();
+  const trustPlaylistFallback = shouldTrustPlaylistFallback(titleLang);
 
-  for (let i = 0; i < entries.length; i += TITLE_CHUNK_SIZE) {
-    const chunk = entries.slice(i, i + TITLE_CHUNK_SIZE);
-    try {
-      const chunkTitles = await fetchTitleChunk(ytdlpCmd, chunk, titleLang);
-      for (const [id, title] of chunkTitles) {
-        titleMap.set(id, title);
-      }
-    } catch {
-      // Thử từng video trong chunk nếu batch lỗi
-      for (const entry of chunk) {
-        try {
-          const singleTitles = await fetchTitleChunk(ytdlpCmd, [entry], titleLang);
-          for (const [id, title] of singleTitles) {
-            titleMap.set(id, title);
-          }
-        } catch {
-          // Giữ tiêu đề từ flat-playlist
-        }
-      }
+  return async function resolveVideoTitle(entry) {
+    const cached = titleCache.get(entry.id);
+    if (cached) return cached;
+
+    if (trustPlaylistFallback && isValidTitle(entry.title, entry.id)) {
+      const title = cleanVideoTitle(entry.title, entry.id);
+      titleCache.set(entry.id, title);
+      return title;
     }
-  }
 
-  const stillMissing = entries.filter(
-    (entry) => !isValidTitle(titleMap.get(entry.id)) && !isValidTitle(entry.title),
-  );
-
-  for (const entry of stillMissing) {
-    try {
-      const singleTitles = await fetchTitleChunk(ytdlpCmd, [entry], titleLang);
-      const fetched = singleTitles.get(entry.id);
-      if (isValidTitle(fetched)) {
-        titleMap.set(entry.id, fetched);
-      }
-    } catch {
-      // Giữ tiêu đề từ flat-playlist hoặc fallback video id
-    }
-  }
-
-  return entries.map((entry) => ({
-    ...entry,
-    title: pickBestTitle(titleMap.get(entry.id), entry.title, entry.id),
-  }));
+    const fetched = await fetchSingleTitle(ytdlpCmd, entry, titleLang);
+    const title = cleanVideoTitle(
+      pickBestTitle(fetched, entry.title, entry.id),
+      entry.id,
+    );
+    titleCache.set(entry.id, title);
+    return title;
+  };
 }
 
-function describeTitleFetchMode() {
+function describeTitleResolveMode() {
   const titleLang = getTitleLang();
   if (titleLang) {
-    return `ngôn ngữ ${titleLang}`;
+    return `Tiêu đề (ngôn ngữ ${titleLang}) lấy khi bắt đầu tải từng video`;
   }
-  return 'tiêu đề gốc';
+  if (hasYtDlpCookies()) {
+    return 'Tiêu đề gốc lấy khi bắt đầu tải từng video (ưu tiên gốc, dự phòng từ playlist)';
+  }
+  return 'Tiêu đề từ playlist — không cần gọi yt-dlp thêm';
 }
 
 module.exports = {
-  fetchOriginalVideoTitles,
-  describeTitleFetchMode,
+  createTitleResolver,
+  resetTitleCache,
+  describeTitleResolveMode,
   getTitleLang,
   cleanVideoTitle,
+  shouldTrustPlaylistFallback,
+  pickBestTitle,
+  isValidTitle,
 };

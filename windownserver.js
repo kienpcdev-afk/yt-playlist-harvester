@@ -28,7 +28,7 @@ const {
   releaseDownloadSlot,
   cleanupPartialDownload,
 } = require('./ytdlp-resilience');
-const { fetchOriginalVideoTitles, describeTitleFetchMode, cleanVideoTitle } = require('./ytdlp-titles');
+const { createTitleResolver, resetTitleCache, describeTitleResolveMode, cleanVideoTitle } = require('./ytdlp-titles');
 const { registerCookieUpdateRoute } = require('./cookie-update');
 const {
   resetStopState,
@@ -346,30 +346,22 @@ app.post('/api/playlist/download', async (req, res) => {
       );
     }
 
-    log('info', `Đang lấy ${describeTitleFetchMode()} cho ${selected.length} video...`);
-    const selectedWithTitles = await fetchOriginalVideoTitles(YTDLP_BIN, selected);
-    if (abortIfStopping(log, res)) return;
+    resetTitleCache();
+    const resolveVideoTitle = createTitleResolver(YTDLP_BIN);
+    log('info', describeTitleResolveMode());
 
     const startIdx = X - 1;
 
-    const videos = selectedWithTitles.map((entry, i) => {
-      const playlistPosition = startIdx + i + 1;
-      return {
-        id: entry.id,
-        title: cleanVideoTitle(entry.title, entry.id),
-        playlistPosition,
-        videoUrl: `https://www.youtube.com/watch?v=${entry.id}`,
-      };
-    });
+    const videos = selected.map((entry, i) => ({
+      id: entry.id,
+      playlistTitle: entry.title,
+      playlistPosition: startIdx + i + 1,
+      videoUrl: `https://www.youtube.com/watch?v=${entry.id}`,
+    }));
 
     log('playlist', `Đã lọc ${videos.length} video (từ #${X} đến #${Math.min(Y, totalVisible || X + videos.length - 1)})`, {
       total: totalVisible || entries.length,
       selected: videos.length,
-      videos: videos.map((v) => ({
-        position: v.playlistPosition,
-        id: v.id,
-        title: v.title,
-      })),
     });
 
     const concurrency = getDownloadConcurrency();
@@ -378,8 +370,10 @@ app.post('/api/playlist/download', async (req, res) => {
     let completedCount = 0;
 
     const { results, failures, stopped } = await runWithConcurrency(videos, async (video, i) => {
-      const { playlistPosition, title, videoUrl } = video;
+      const { playlistPosition, videoUrl } = video;
       const stt = formatSTT(playlistPosition);
+      const title = await resolveVideoTitle({ id: video.id, title: video.playlistTitle });
+      video.title = title;
       const baseName = buildFilename(stt, title, video.id);
       const videoPath = path.join(saveDir, `${baseName}.mp4`);
       const thumbPath = path.join(saveDir, `${buildThumbFilename(stt)}.jpg`);

@@ -174,17 +174,37 @@
     #logTerminal {
       background-color: var(--app-terminal);
       color: #4ade80;
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      min-height: 240px;
+      max-height: min(480px, 55vh);
       scrollbar-width: thin;
-      scrollbar-color: #27272a transparent;
+      scrollbar-color: #3f3f46 #141417;
+    }
+
+    @media (min-width: 1024px) {
+      #logTerminal {
+        min-height: 0;
+        max-height: none;
+      }
     }
 
     #logTerminal::-webkit-scrollbar {
-      width: 6px;
+      width: 8px;
+    }
+
+    #logTerminal::-webkit-scrollbar-track {
+      background: #141417;
     }
 
     #logTerminal::-webkit-scrollbar-thumb {
-      background: #27272a;
-      border-radius: 3px;
+      background: #3f3f46;
+      border-radius: 4px;
+    }
+
+    #logTerminal::-webkit-scrollbar-thumb:hover {
+      background: #52525b;
     }
 
     #clearLogBtn {
@@ -459,7 +479,7 @@
       </section>
 
       <!-- Right: Progress + Terminal -->
-      <div class="flex min-h-[520px] flex-col gap-5 lg:min-h-0">
+      <div class="flex min-h-0 flex-col gap-5 lg:max-h-[calc(100vh-7.5rem)] lg:self-stretch">
 
         <!-- Progress -->
         <section id="progressSection" class="app-card hidden p-5 sm:p-6">
@@ -478,9 +498,9 @@
         </section>
 
         <!-- Terminal Log -->
-        <section class="flex min-h-0 flex-1 flex-col">
-          <div class="terminal-window flex-1">
-            <div class="terminal-titlebar">
+        <section class="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div class="terminal-window min-h-0 flex-1 overflow-hidden">
+            <div class="terminal-titlebar shrink-0">
               <div class="flex min-w-0 items-center gap-3">
                 <div class="terminal-dots shrink-0" aria-hidden="true">
                   <span class="terminal-dot bg-[#ff5f57]"></span>
@@ -493,7 +513,7 @@
             </div>
             <div
               id="logTerminal"
-              class="min-h-[320px] flex-1 overflow-y-auto p-4 font-mono text-xs leading-relaxed sm:min-h-[380px] lg:min-h-0"
+              class="flex-1 overflow-y-auto overflow-x-hidden p-4 font-mono text-xs leading-relaxed"
             >
               <p class="text-zinc-600">// Chờ lệnh tải...</p>
             </div>
