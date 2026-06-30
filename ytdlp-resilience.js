@@ -60,10 +60,29 @@ function cleanupPartialDownload(outputPath) {
   }
 }
 
+function cleanupPartialDownloadByStt(saveDir, stt) {
+  const fs = require('fs');
+  const path = require('path');
+  if (!fs.existsSync(saveDir)) return;
+
+  const prefix = `${stt} `;
+  for (const file of fs.readdirSync(saveDir)) {
+    if (!file.startsWith(prefix)) continue;
+    if (/\.(part|ytdl|temp|mp4|webm)$/i.test(file)) {
+      try {
+        fs.unlinkSync(path.join(saveDir, file));
+      } catch {
+        // Bỏ qua file đang bị khóa
+      }
+    }
+  }
+}
+
 module.exports = {
   getYtDlpRetryArgs,
   getGlobalDownloadConcurrency,
   acquireDownloadSlot,
   releaseDownloadSlot,
   cleanupPartialDownload,
+  cleanupPartialDownloadByStt,
 };

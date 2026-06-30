@@ -26,9 +26,15 @@ const {
   getGlobalDownloadConcurrency,
   acquireDownloadSlot,
   releaseDownloadSlot,
-  cleanupPartialDownload,
+  cleanupPartialDownloadByStt,
 } = require('./ytdlp-resilience');
-const { createTitleResolver, resetTitleCache, describeTitleResolveMode, cleanVideoTitle } = require('./ytdlp-titles');
+const {
+  buildVideoOutputTemplate,
+  findVideoFileByStt,
+  extractTitleFromVideoPath,
+  describeTitleNamingMode,
+  cleanVideoTitle,
+} = require('./ytdlp-titles');
 const { registerCookieUpdateRoute } = require('./cookie-update');
 const {
   resetStopState,
@@ -346,9 +352,7 @@ app.post('/api/playlist/download', async (req, res) => {
       );
     }
 
-    resetTitleCache();
-    const resolveVideoTitle = createTitleResolver(YTDLP_BIN);
-    log('info', describeTitleResolveMode());
+    log('info', describeTitleNamingMode());
 
     const startIdx = X - 1;
 
@@ -372,17 +376,14 @@ app.post('/api/playlist/download', async (req, res) => {
     const { results, failures, stopped } = await runWithConcurrency(videos, async (video, i) => {
       const { playlistPosition, videoUrl } = video;
       const stt = formatSTT(playlistPosition);
-      const title = await resolveVideoTitle({ id: video.id, title: video.playlistTitle });
-      video.title = title;
-      const baseName = buildFilename(stt, title, video.id);
-      const videoPath = path.join(saveDir, `${baseName}.mp4`);
+      const outputTemplate = buildVideoOutputTemplate(saveDir, stt);
       const thumbPath = path.join(saveDir, `${buildThumbFilename(stt)}.jpg`);
+      let videoPath = null;
 
-      log('start', `[${stt}] Bắt đầu tải: ${title}`, {
+      log('start', `[${stt}] Bắt đầu tải`, {
         stt,
         videoId: video.id,
         playlistPosition,
-        title,
         index: i + 1,
         total: videos.length,
       });
@@ -390,21 +391,31 @@ app.post('/api/playlist/download', async (req, res) => {
       try {
         await downloadVideoAndThumbnail(
           videoUrl,
-          videoPath,
+          outputTemplate,
           thumbPath,
           video.id,
           resHeight,
           (line) => log('progress', line, { stt, videoId: video.id }),
-          () => log('video_done', `[${stt}] Đã tải video xong`, { stt, path: videoPath }),
+          () => {},
           (url) => log('thumb_done', `[${stt}] Đã tải ảnh bìa`, { stt, path: thumbPath, url }),
           (err) => log('thumb_error', `[${stt}] Lỗi ảnh bìa: ${err.message}`, { stt }),
         );
+
+        videoPath = findVideoFileByStt(saveDir, stt);
+        if (!videoPath) {
+          throw new Error('Không tìm thấy file video sau khi tải');
+        }
+
+        const title = extractTitleFromVideoPath(videoPath, stt, video.id) || video.id;
+        video.title = title;
+
+        log('video_done', `[${stt}] Đã tải video xong: ${title}`, { stt, path: videoPath, title });
       } catch (err) {
-        cleanupPartialDownload(videoPath);
+        cleanupPartialDownloadByStt(saveDir, stt);
         log('skip', `[${stt}] Bỏ qua, chuyển sang video tiếp theo`, {
           stt,
           videoId: video.id,
-          title,
+          title: video.title || video.id,
           videoUrl,
         });
         throw err;
@@ -416,7 +427,7 @@ app.post('/api/playlist/download', async (req, res) => {
       return {
         stt,
         videoId: video.id,
-        title,
+        title: video.title,
         videoPath,
         thumbPath,
       };
