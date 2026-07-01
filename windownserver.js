@@ -26,10 +26,20 @@ const {
   getGlobalDownloadConcurrency,
   acquireDownloadSlot,
   releaseDownloadSlot,
+  cleanupPartialDownload,
   cleanupPartialDownloadByStt,
 } = require('./ytdlp-resilience');
 const {
+  getDownloadClientFallbackList,
+  getYtDlpExtractorArgs,
+  isYtDlpFormatUnavailableError,
+  describePlayerClientLabel,
+  describeYtDlpPlayerClients,
+} = require('./ytdlp-player-client');
+const { buildFormatString, getYtDlpMergeArgs, remuxMp4ForPremiere } = require('./ytdlp-download');
+const {
   buildVideoOutputTemplate,
+  findVideoFromOutputTemplate,
   findVideoFileByStt,
   extractTitleFromVideoPath,
   describeTitleNamingMode,
@@ -108,12 +118,6 @@ function formatSTT(playlistPosition) {
   return String(playlistPosition).padStart(2, '0');
 }
 
-function getYtDlpExtractorArgs() {
-  // android/tvhtml5 không tương thích --cookies; dùng web khi có cookies (playlist >100)
-  const client = hasYtDlpCookies() ? 'web' : 'android,tvhtml5';
-  return ['--extractor-args', `youtube:player_client=${client}`];
-}
-
 function buildThumbFilename(stt) {
   return stt;
 }
@@ -138,10 +142,6 @@ function cleanupLeftoverFiles(dirPath) {
 
 function buildFilename(stt, title, videoId) {
   return `${stt} ${cleanVideoTitle(title, videoId)}`;
-}
-
-function buildFormatString(resolution) {
-  return `bestvideo[height<=${resolution}]+bestaudio/best[height<=${resolution}]`;
 }
 
 function runYtDlpFlatPlaylist(playlistUrl, playlistItems) {
@@ -205,16 +205,16 @@ async function downloadVideoAndThumbnail(videoUrl, videoPath, thumbPath, videoId
   await Promise.all([videoTask, thumbTask]);
 }
 
-function downloadVideo(videoUrl, outputPath, resolution, onLog) {
+function downloadVideoOnce(videoUrl, outputPath, resolution, onLog, playerClient) {
   return new Promise((resolve, reject) => {
     const logLine = createYtDlpProgressLogger(onLog);
     const args = [
       ...getYtDlpCookieArgs(),
       ...getYtDlpJsRuntimeArgs(),
-      ...getYtDlpExtractorArgs(),
+      ...getYtDlpExtractorArgs(playerClient),
       ...getYtDlpRetryArgs(),
       '-f', buildFormatString(resolution),
-      '--merge-output-format', 'mp4',
+      ...getYtDlpMergeArgs(),
       '--no-keep-video',
       '--newline',
       '--no-overwrites',
@@ -243,6 +243,40 @@ function downloadVideo(videoUrl, outputPath, resolution, onLog) {
       else reject(new Error(stderr.trim() || `yt-dlp thoát với mã ${code}`));
     });
   });
+}
+
+async function downloadVideo(videoUrl, outputPath, resolution, onLog) {
+  const clients = getDownloadClientFallbackList();
+  let lastError = null;
+
+  for (let i = 0; i < clients.length; i++) {
+    const client = clients[i];
+    if (i > 0) {
+      onLog(`[info] Thử lại với player_client=${describePlayerClientLabel(client)}`);
+      cleanupPartialDownload(outputPath);
+    }
+
+    try {
+      await downloadVideoOnce(videoUrl, outputPath, resolution, onLog, client);
+      if (i > 0) {
+        onLog(`[info] Tải OK với player_client=${describePlayerClientLabel(client)}`);
+      }
+
+      const mergedPath = findVideoFromOutputTemplate(outputPath);
+      if (mergedPath) {
+        await remuxMp4ForPremiere(mergedPath, onLog);
+      }
+      return;
+    } catch (err) {
+      lastError = err;
+      const canRetry = isYtDlpFormatUnavailableError(err.message) && i < clients.length - 1;
+      if (!canRetry) {
+        throw err;
+      }
+    }
+  }
+
+  throw lastError || new Error('yt-dlp không tải được video');
 }
 
 async function downloadVideoWithSlot(videoUrl, outputPath, resolution, onLog) {
@@ -492,8 +526,8 @@ async function startServer() {
     if (jsRuntime) {
       console.log(`YouTube JS runtime: ${jsRuntime}`);
     }
-    const playerClient = hasYtDlpCookies() ? 'web' : 'android,tvhtml5';
-    console.log(`YouTube player_client: ${playerClient}${hasYtDlpCookies() ? ' (cookies bật)' : ''}`);
+    const playerClient = describeYtDlpPlayerClients();
+    console.log(`YouTube player_client: ${playerClient} (fallback khi thiếu format)`);
     console.log('API đồng bộ Cookie: POST http://localhost:' + PORT + '/update-cookie (Extension Chrome)');
   });
 }

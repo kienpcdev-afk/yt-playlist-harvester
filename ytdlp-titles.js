@@ -32,6 +32,13 @@ function buildVideoOutputTemplate(saveDir, stt) {
   return `${normalizedDir}/${stt} %(title)s.%(ext)s`;
 }
 
+function findVideoFromOutputTemplate(outputTemplate) {
+  const dir = path.dirname(outputTemplate);
+  const stt = path.basename(outputTemplate).split(' ')[0];
+  if (!stt) return null;
+  return findVideoFileByStt(dir, stt);
+}
+
 function findVideoFileByStt(saveDir, stt) {
   if (!fs.existsSync(saveDir)) return null;
 
@@ -69,6 +76,7 @@ function describeTitleNamingMode() {
 
 module.exports = {
   buildVideoOutputTemplate,
+  findVideoFromOutputTemplate,
   findVideoFileByStt,
   extractTitleFromVideoPath,
   describeTitleNamingMode,

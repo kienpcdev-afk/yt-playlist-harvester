@@ -54,7 +54,12 @@ function cleanupPartialDownload(outputPath) {
 
   for (const file of fs.readdirSync(dir)) {
     if (!file.startsWith(base)) continue;
-    if (file.includes('.part') || file.endsWith('.ytdl') || file.endsWith('.temp')) {
+    if (
+      file.includes('.part')
+      || file.endsWith('.ytdl')
+      || file.endsWith('.temp')
+      || file.includes('.premiere-remux.tmp')
+    ) {
       fs.unlinkSync(path.join(dir, file));
     }
   }
